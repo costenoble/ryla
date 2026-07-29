@@ -1,0 +1,219 @@
+@import "tailwindcss";
+
+/**
+ * Système de design Ryla.
+ *
+ * Palette tirée du logo : un indigo profond (#200850) comme surface de marque,
+ * l'orange du mot-clé (#D85808) en accent, et du blanc pour tout le reste. Le
+ * bleu interactif vient s'intercaler entre les deux — c'est lui qui porte les
+ * actions, l'orange restant réservé aux appels à l'action et aux points
+ * d'attention, pour qu'il garde sa valeur de signal.
+ *
+ * Deux règles tenues partout :
+ *  • L'orange ne sert jamais à afficher du texte courant sur fond clair — son
+ *    contraste ne passe pas le 4,5:1 requis.
+ *  • Les rayons suivent une échelle unique. Trois valeurs proches choisies au
+ *    hasard, c'est ce qui fait « bricolé » avant même qu'on sache pourquoi.
+ */
+
+@theme {
+  /* --- Indigo de marque (surfaces sombres, sidebar, panneaux) ------------ */
+  --color-ink-950: #12062f;
+  --color-ink-900: #1a0844;
+  --color-ink-850: #200850;
+  --color-ink-800: #291167;
+  --color-ink-700: #35197f;
+  --color-ink-600: #4a27a3;
+  --color-ink-400: #8f7bc4;
+  --color-ink-300: #b3a4d8;
+  --color-ink-200: #d5cbeb;
+
+  /* --- Bleu interactif : liens, boutons primaires, sélection ------------- */
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-300: #93c5fd;
+  --color-brand-400: #60a5fa;
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+  --color-brand-800: #1e40af;
+
+  /* --- Orange d'accent : CTA, mises en avant, vigilance ------------------ */
+  --color-flame-50: #fff7ed;
+  --color-flame-100: #ffedd5;
+  --color-flame-200: #fed7aa;
+  --color-flame-400: #fb923c;
+  --color-flame-500: #f97316;
+  --color-flame-600: #ea580c;
+  --color-flame-700: #c2410c;
+
+  /* --- Neutres ----------------------------------------------------------- */
+  --color-canvas: #f6f8fc;
+  --color-surface: #ffffff;
+  --color-line: #e6ebf3;
+  --color-line-strong: #d3dbe8;
+  --color-body: #0f172a;
+  --color-muted: #64748b;
+  --color-faint: #94a3b8;
+
+  /* --- Sémantique -------------------------------------------------------- */
+  --color-positive: #059669;
+  --color-positive-soft: #ecfdf5;
+  --color-caution: #b45309;
+  --color-caution-soft: #fffbeb;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fef2f2;
+
+  /* --- Rayons : générosité assumée, échelle unique ----------------------- */
+  --radius-xs: 7px;
+  --radius-sm: 9px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-3xl: 30px;
+
+  /* --- Ombres : basses et diffuses, jamais dures ------------------------- */
+  --shadow-tile:
+    0 1px 2px rgb(15 23 42 / 0.04), 0 4px 12px -4px rgb(15 23 42 / 0.06);
+  --shadow-card:
+    0 1px 3px rgb(15 23 42 / 0.05), 0 12px 32px -12px rgb(15 23 42 / 0.12);
+  --shadow-pop:
+    0 2px 6px rgb(15 23 42 / 0.06), 0 24px 48px -20px rgb(15 23 42 / 0.24);
+  --shadow-ink: 0 20px 60px -24px rgb(26 8 68 / 0.55);
+
+  --font-sans: var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+
+  /* --- Courbe unique pour toutes les transitions ------------------------- */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Couleur du cabinet, surchargée par tenant sur les écrans patient. */
+:root {
+  --brand: var(--color-brand-600);
+  color-scheme: light;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-body);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Chiffres alignés partout : dans un tableau de bord, des colonnes de nombres
+   qui dansent d'une ligne à l'autre se remarquent immédiatement. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Le focus reste visible partout : ces formulaires sont longs et se remplissent
+   aussi au clavier. Le supprimer est la première façon de casser un produit
+   pour les personnes qui n'utilisent pas de souris. */
+:focus-visible {
+  outline: 2px solid var(--color-brand-600);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+::selection {
+  background: var(--color-brand-100);
+  color: var(--color-ink-900);
+}
+
+/* Cibles tactiles : une bonne part des questionnaires se remplit au téléphone,
+   souvent debout en salle d'attente. */
+@media (pointer: coarse) {
+  button,
+  a[role="button"],
+  input,
+  select,
+  textarea {
+    min-height: 44px;
+  }
+}
+
+/* Barres de défilement discrètes sur les zones internes. */
+.scroll-slim {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+.scroll-slim::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-slim::-webkit-scrollbar-thumb {
+  background: var(--color-line-strong);
+  border-radius: 999px;
+}
+
+/**
+ * Utilitaires de couleur du cabinet.
+ *
+ * Sur le portail patient, l'accent vient du branding du tenant et n'est donc
+ * pas connu à la compilation. Ces classes lisent `--brand` à l'exécution ;
+ * elles ne servent qu'aux écrans patient, l'espace praticien utilisant les
+ * jetons statiques.
+ */
+.brand-bg {
+  background-color: var(--brand);
+}
+.brand-text {
+  color: var(--brand);
+}
+.brand-border {
+  border-color: var(--brand);
+}
+.brand-soft {
+  background-color: color-mix(in oklab, var(--brand) 7%, white);
+}
+.brand-accent {
+  accent-color: var(--brand);
+}
+.brand-focus:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--brand) 16%, transparent);
+  outline: none;
+}
+
+/* Dégradé de marque, repris du symbole : orange → rose → violet. */
+.brand-gradient {
+  background-image: linear-gradient(115deg, #f97316 0%, #e879a8 45%, #7c3aed 100%);
+}
+
+.ink-panel {
+  background-image:
+    radial-gradient(120% 90% at 8% 0%, rgb(74 39 163 / 0.55) 0%, transparent 55%),
+    radial-gradient(70% 55% at 105% 95%, rgb(249 115 22 / 0.10) 0%, transparent 60%),
+    linear-gradient(160deg, var(--color-ink-900) 0%, var(--color-ink-950) 100%);
+}
+
+/* Respecte le réglage système : une animation décorative ne doit jamais être
+   imposée à quelqu'un qui a demandé qu'on la lui épargne. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+}

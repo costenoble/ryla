@@ -1,0 +1,19 @@
+# Hors dépôt git, le CLI Vercel n'applique pas .gitignore : sans ce fichier il
+# tente de lire jusqu'à la socket Unix du cluster PostgreSQL local et échoue.
+#
+# Ne pas y mettre `.next` : Vercel l'exclut déjà de l'envoi, mais l'y déclarer
+# lui fait aussi perdre les métadonnées de sortie de build.
+.pgdata
+storage
+screenshots
+coverage
+
+# Secrets et données : rien de tout ça n'a à monter sur la plateforme.
+.env
+.env.*
+cabinet-*.sql
+
+# Outillage local sans usage à l'exécution.
+.claude
+*.log
+*.tsbuildinfo
