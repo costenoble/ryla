@@ -2,7 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { IconAlert, IconChevronRight, IconFolder } from "@/components/icons";
 import { FadeUp, Stagger, StaggerItem } from "@/components/motion";
-import { Badge, Card, cx, EmptyState, PageHeader, type BadgeTone } from "@/components/ui";
+import {
+  Badge,
+  ButtonLink,
+  Card,
+  cx,
+  EmptyState,
+  PageHeader,
+  type BadgeTone,
+} from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { withTenant } from "@/lib/db";
 import { formatDate } from "@/lib/format";
@@ -44,6 +52,7 @@ export default async function DossiersPage() {
                     : ""
                 }`
           }
+          action={<ButtonLink href="/dossiers/nouveau">Envoyer un document</ButtonLink>}
         />
       </FadeUp>
 
@@ -52,7 +61,10 @@ export default async function DossiersPage() {
           <EmptyState
             icon={<IconFolder className="size-5" />}
             title="Aucun dossier pour l'instant"
-            description="Envoyez un questionnaire depuis un modèle pour créer votre premier dossier."
+            description="Envoyez un questionnaire à un patient pour créer votre premier dossier."
+            action={
+              <ButtonLink href="/dossiers/nouveau">Envoyer un document</ButtonLink>
+            }
           />
         </FadeUp>
       ) : (

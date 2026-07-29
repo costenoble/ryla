@@ -17,7 +17,7 @@ import {
   IconUsers,
   type IconProps,
 } from "@/components/icons";
-import { Badge, Card, CardHeader, cx, EmptyState } from "@/components/ui";
+import { Badge, ButtonLink, Card, CardHeader, cx, EmptyState } from "@/components/ui";
 import { formatCents } from "@/lib/cerfa";
 
 /**
@@ -77,6 +77,9 @@ export function DashboardView({ data }: { data: DashboardData }) {
               ? `${data.pendingCount} document${data.pendingCount > 1 ? "s" : ""} en attente de réponse patient.`
               : "Aucun document en attente. Tout est à jour."}
           </p>
+          <div className="mt-5">
+            <ButtonLink href="/dossiers/nouveau">Envoyer un document</ButtonLink>
+          </div>
         </div>
       </FadeUp>
 
