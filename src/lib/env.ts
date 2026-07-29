@@ -34,11 +34,37 @@ export const env = {
   get tokenSecret() {
     return required("RYLA_TOKEN_SECRET");
   },
+  /**
+   * URL publique de l'application, celle qui construit les liens patients.
+   *
+   * `APP_BASE_URL` reste prioritaire — c'est elle qu'on renseignera avec le
+   * domaine définitif. À défaut, on retombe sur le domaine que Vercel expose
+   * de lui-même, ce qui évite d'avoir à connaître l'URL avant le premier
+   * déploiement.
+   *
+   * `VERCEL_PROJECT_PRODUCTION_URL` d'abord, et pas `VERCEL_URL` : la seconde
+   * change à chaque déploiement. Un lien envoyé à un patient lundi doit encore
+   * s'ouvrir vendredi, après trois mises en ligne.
+   */
   get appBaseUrl() {
-    return optional("APP_BASE_URL", "http://localhost:3000");
+    const explicit = process.env.APP_BASE_URL;
+    if (explicit) return explicit;
+
+    const vercelHost =
+      process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
+    if (vercelHost) return `https://${vercelHost}`;
+
+    return "http://localhost:3000";
   },
   get tenantDomain() {
-    return optional("APP_TENANT_DOMAIN", "localhost:3000");
+    const explicit = process.env.APP_TENANT_DOMAIN;
+    if (explicit) return explicit;
+
+    const vercelHost =
+      process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
+    if (vercelHost) return vercelHost;
+
+    return "localhost:3000";
   },
   get magicLinkTtlHours() {
     return Number(optional("MAGIC_LINK_TTL_HOURS", "168"));
