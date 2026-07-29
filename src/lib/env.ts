@@ -83,6 +83,16 @@ export const env = {
     return process.env.NODE_ENV === "production";
   },
   /**
+   * Affiche la liste des cabinets sur l'écran de connexion.
+   *
+   * Réservé aux environnements de démonstration : en exploitation réelle,
+   * chaque cabinet a son sous-domaine et l'énumération publique des cabinets
+   * n'a pas lieu d'être.
+   */
+  get showTenantPicker() {
+    return process.env.RYLA_TENANT_PICKER === "on";
+  },
+  /**
    * Exécution serverless : chaque instance est un processus court-vivant, et
    * il peut y en avoir des centaines en parallèle. Garder un pool étroit évite
    * de saturer les connexions de la base.

@@ -69,7 +69,10 @@ export async function resolveTenantBySlug(
 export async function listTenantsForLogin(): Promise<
   { slug: string; name: string }[]
 > {
-  if (env.isProduction) return [];
+  // Hors développement, la liste des cabinets ne s'affiche que si on l'a
+  // explicitement demandé — le temps d'une démonstration sur un domaine
+  // Vercel, avant que chaque cabinet ait son sous-domaine.
+  if (env.isProduction && !env.showTenantPicker) return [];
 
   try {
     return await withPrivileged(
@@ -101,7 +104,14 @@ export function tenantSlugFromHost(host: string | null | undefined): string | nu
     return slug && !slug.includes(".") && slug !== "www" ? slug : null;
   }
 
-  const parts = hostname.split(".");
-  if (parts.length >= 3 && parts[0] && parts[0] !== "www") return parts[0];
+  // Aucun repli sur « le premier label d'un hôte à trois étiquettes ».
+  //
+  // Ça paraissait raisonnable et c'était faux : sur `ryla-one.vercel.app`,
+  // `ryla-one` est le nom du projet, pas un cabinet. L'application cherchait
+  // alors un cabinet inexistant et répondait « Identifiants incorrects » quels
+  // que soient les identifiants, sans champ pour corriger le tir.
+  //
+  // Un slug ne se devine pas : il vient d'un sous-domaine du domaine configuré,
+  // ou il est saisi.
   return null;
 }
