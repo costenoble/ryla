@@ -1,5 +1,6 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { loadSession, SESSION_COOKIE, type AuthenticatedSession } from "./session";
 
 /**
@@ -7,12 +8,24 @@ import { loadSession, SESSION_COOKIE, type AuthenticatedSession } from "./sessio
  *
  * Séparée de `session.ts` pour que la logique de session reste testable sans
  * embarquer `next/headers`.
+ *
+ * `currentSession()` est appelée plusieurs fois par requête et sans lien entre
+ * elles : une fois par le layout praticien, une fois par la page, une fois par
+ * l'action serveur qu'elle déclenche. Chaque appel rouvrait sa propre
+ * transaction sur l'unique connexion du pool serverless (`max: 1`) — deux
+ * transactions dos à dos sur cette connexion partagée pouvaient se marcher
+ * dessus, et un envoi de document sur deux se retrouvait déconnecté au milieu
+ * de l'action, sans qu'aucune ligne ne soit écrite.
+ *
+ * `cache()` mémorise le résultat pour la durée de la requête : la session
+ * n'est résolue qu'une fois, où qu'elle soit demandée.
  */
-
-export async function currentSession(): Promise<AuthenticatedSession | null> {
-  const store = await cookies();
-  return loadSession(store.get(SESSION_COOKIE)?.value);
-}
+export const currentSession = cache(
+  async (): Promise<AuthenticatedSession | null> => {
+    const store = await cookies();
+    return loadSession(store.get(SESSION_COOKIE)?.value);
+  },
+);
 
 export async function requireSession(): Promise<AuthenticatedSession> {
   const session = await currentSession();

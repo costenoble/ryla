@@ -50,7 +50,10 @@ export function db(): Db {
     globalRef.__rylaPool = postgres(url, {
       // Un pool large par instance sature la base dès que la plateforme
       // multiplie les instances. Le pooler côté serveur fait le vrai travail.
-      max: env.isServerless ? 1 : 10,
+      // Pas 1 : sous Fluid Compute, une même instance sert des requêtes
+      // concurrentes (un praticien et un patient sur son lien, par exemple),
+      // et une connexion unique les mettrait inutilement en file.
+      max: env.isServerless ? 3 : 10,
       idle_timeout: 20,
       connect_timeout: 10,
       prepare: !usesTransactionPooler(url),
