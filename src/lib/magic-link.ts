@@ -61,9 +61,14 @@ export async function issueAccessToken(
 
 export function buildPortalUrl(tenantSlug: string, rawToken: string): string {
   const base = new URL(env.appBaseUrl);
-  // En production, chaque cabinet a son sous-domaine (branding, mentions
-  // légales et DPO propres). En local on reste sur l'hôte courant.
-  if (!base.hostname.includes("localhost") && !base.hostname.startsWith("127.")) {
+  // Sous-domaine par cabinet uniquement si APP_TENANT_DOMAIN est configuré
+  // explicitement (un domaine personnalisé avec un DNS générique, ex.
+  // *.ryla.fr). Sur l'alias *.vercel.app d'un déploiement, Vercel ne route
+  // que cet alias exact — un sous-domaine construit dessous n'importerait
+  // jamais nulle part, sans qu'aucune erreur ne le signale à l'émission du
+  // lien. Faute de domaine personnalisé, tous les cabinets partagent l'hôte
+  // courant : ce n'est pas la cible finale, mais ça reste fonctionnel.
+  if (env.hasCustomTenantDomain) {
     base.hostname = `${tenantSlug}.${base.hostname.replace(/^www\./, "")}`;
   }
   base.pathname = `/p/${rawToken}`;

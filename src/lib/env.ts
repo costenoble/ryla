@@ -66,6 +66,21 @@ export const env = {
 
     return "localhost:3000";
   },
+  /**
+   * `APP_TENANT_DOMAIN` tel que réellement configuré, sans le repli sur le
+   * domaine Vercel du déploiement.
+   *
+   * Sert à décider si le portail patient doit prendre la forme d'un
+   * sous-domaine par cabinet. Un domaine personnalisé (`ryla.fr`) avec un
+   * DNS générique (`*.ryla.fr`) le permet ; le domaine `*.vercel.app` d'un
+   * déploiement, non — Vercel ne route que l'alias exact configuré, pas des
+   * sous-domaines arbitraires en dessous. Sans cette distinction,
+   * `cabinet-martin.ryla-one.vercel.app` est généré et n'importe jamais nulle
+   * part, alors qu'aucune erreur ne le signale au moment de l'émission.
+   */
+  get hasCustomTenantDomain() {
+    return Boolean(process.env.APP_TENANT_DOMAIN);
+  },
   get magicLinkTtlHours() {
     return Number(optional("MAGIC_LINK_TTL_HOURS", "168"));
   },
