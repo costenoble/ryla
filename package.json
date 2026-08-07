@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "tsx scripts/preflight.ts && next dev",
-    "build": "next build && node scripts/patch-vercel-build.mjs",
+    "build": "node scripts/patch-vercel-build.mjs --pre && next build && node scripts/patch-vercel-build.mjs --post",
     "build:clean": "rm -rf .next node_modules/.cache && npm run build",
     "start": "next start",
     "typecheck": "tsc --noEmit",

@@ -15,6 +15,16 @@ import { createSubmission, markSent } from "@/lib/repos/submissions";
  * Il ne passe ni par l'URL ni par un paramètre de redirection : un jeton dans
  * la barre d'adresse finit dans l'historique du navigateur et dans les
  * journaux des intermédiaires.
+ *
+ * Ce fichier vit délibérément hors de `src/app/(praticien)/…` plutôt que
+ * colocalisé avec la page qui l'utilise. Une Server Action définie dans un
+ * dossier de route imbriqué sous un groupe de routes portant un layout
+ * asynchrone (ici, `(praticien)/layout.tsx` et son `requireSession()`) ne
+ * s'exécute jamais sur Vercel : le clic redirige silencieusement vers
+ * `/connexion` sans qu'aucune ligne de la fonction ne soit atteinte — vérifié
+ * par une écriture inconditionnelle en tout début de fonction, qui n'a jamais
+ * eu lieu. La même action, déplacée ici, fonctionne normalement. Toute
+ * nouvelle action doit suivre ce même emplacement.
  */
 
 export type NewSubmissionState =

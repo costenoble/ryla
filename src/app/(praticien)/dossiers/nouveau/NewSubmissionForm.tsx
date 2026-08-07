@@ -5,7 +5,7 @@ import { useActionState, useState } from "react";
 import { IconAlert, IconCheck, IconLink, IconLock } from "@/components/icons";
 import { FadeUp } from "@/components/motion";
 import { Badge, Button, ButtonLink, Card, Field, inputClass } from "@/components/ui";
-import { createAndSend, type NewSubmissionState } from "./actions";
+import { createAndSend, type NewSubmissionState } from "@/lib/actions/dossiers";
 
 const initial: NewSubmissionState = { status: "idle" };
 
