@@ -299,8 +299,21 @@ chiffrement du cabinet, l'empreinte scrypt du mot de passe, les empreintes des
 modèles. Le mot de passe en clair n'apparaît jamais dans le fichier produit.
 
 ⚠️ **La clé `RYLA_KEK` doit être identique partout.** La clé du cabinet est
-scellée avec elle au moment de la génération : si Vercel en utilise une autre,
-plus aucune réponse de ce cabinet n'est déchiffrable, et c'est irrattrapable.
+scellée avec elle au moment de la génération. Si l'application tourne ensuite
+avec une autre KEK, la première lecture ou écriture de données de santé échoue
+sur un message déroutant — « Unsupported state or unable to authenticate
+data » — alors que tout le reste de l'application fonctionne.
+
+Tant que l'ancienne KEK est connue, ce n'est pas perdu : `rewrap-dek.mjs`
+re-scelle la clé du cabinet sans la changer, donc sans rendre illisible ce qui
+a déjà été chiffré.
+
+```bash
+node scripts/rewrap-dek.mjs <dek_wrapped_hex> <ancienne_kek> <nouvelle_kek> <slug>
+```
+
+Si l'ancienne KEK est perdue, en revanche, les données de ce cabinet le sont
+aussi — c'est le principe même du chiffrement.
 
 Quand la connexion PostgreSQL est possible, la même opération tient en une
 commande :

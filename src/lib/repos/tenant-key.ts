@@ -18,5 +18,21 @@ export async function loadTenantDek(tx: Tx, tenantId: string): Promise<Buffer> {
     // programmation, pas des cas métier.
     throw new Error("Clé du cabinet introuvable (contexte de tenant absent ?).");
   }
-  return unwrapDek(Buffer.from(row.dek_wrapped));
+
+  try {
+    return unwrapDek(Buffer.from(row.dek_wrapped));
+  } catch (cause) {
+    // Node dit seulement « Unsupported state or unable to authenticate data »,
+    // ce qui n'oriente vers rien. En pratique la cause est presque toujours la
+    // même : le cabinet a été créé avec une KEK, l'application tourne avec une
+    // autre. Le symptôme est déroutant parce que tout le reste fonctionne —
+    // connexion, navigation, listes — et que seule la première manipulation de
+    // données de santé échoue.
+    throw new Error(
+      `Impossible de déchiffrer la clé du cabinet ${tenantId}. ` +
+        `RYLA_KEK ne correspond pas à celle utilisée lors de sa création. ` +
+        `Voir scripts/rewrap-dek.mjs pour re-sceller la clé sans perte.`,
+      { cause },
+    );
+  }
 }

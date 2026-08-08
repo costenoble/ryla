@@ -12,7 +12,8 @@ import { loadEnv } from "./load-env";
 
 loadEnv();
 
-import { checkRlsEnforcement, db, usesTransactionPooler } from "../src/lib/db";
+import { unwrapDek } from "../src/lib/crypto";
+import { checkRlsEnforcement, db, usesTransactionPooler, withTenant } from "../src/lib/db";
 import { env } from "../src/lib/env";
 
 const ok = (text: string) => console.log(`  ✓ ${text}`);
@@ -74,13 +75,54 @@ try {
     ? ok("le journal d'audit est en append-only")
     : ko("le journal d'audit est modifiable — revoyez les REVOKE de 0002_rls.sql");
 
-  const [tenants] = await sql<{ can_insert: boolean; can_delete: boolean }[]>`
+  const [tenantPrivileges] = await sql<{ can_insert: boolean; can_delete: boolean }[]>`
     select has_table_privilege(current_user, 'tenants', 'INSERT') as can_insert,
            has_table_privilege(current_user, 'tenants', 'DELETE') as can_delete
   `;
-  tenants && !tenants.can_insert && !tenants.can_delete
+  tenantPrivileges && !tenantPrivileges.can_insert && !tenantPrivileges.can_delete
     ? ok("la création de cabinet passe uniquement par app.provision_tenant()")
     : warn("le rôle applicatif peut créer ou supprimer un cabinet directement");
+
+  // --- Clés de chiffrement des cabinets ------------------------------------
+  //
+  // Sans ce contrôle, une KEK qui ne correspond pas ne se manifeste qu'à la
+  // première manipulation de données de santé — une signature de patient, au
+  // pire moment. Tout le reste (connexion, listes, navigation) fonctionne
+  // parfaitement d'ici là.
+  // `tenants` est soumise au RLS : une lecture directe sans contexte ne
+  // renverrait rien et le contrôle passerait inaperçu. On emprunte le même
+  // chemin que l'application — le résolveur SECURITY DEFINER, puis un contexte
+  // de tenant par cabinet.
+  const slugs = await sql<{ slug: string }[]>`select slug from app.list_tenants()`
+    .catch(() => []);
+
+  if (slugs.length > 0) {
+    const broken: string[] = [];
+    for (const { slug } of slugs) {
+      try {
+        const [resolved] = await sql<{ id: string }[]>`
+          select id from app.resolve_tenant_by_slug(${slug})
+        `;
+        if (!resolved) continue;
+        const [row] = await withTenant({ tenantId: resolved.id }, (tx) =>
+          tx<{ dek_wrapped: Uint8Array }[]>`select dek_wrapped from tenants`,
+        );
+        if (!row) continue;
+        unwrapDek(Buffer.from(row.dek_wrapped));
+      } catch {
+        broken.push(slug);
+      }
+    }
+    if (broken.length === 0) {
+      ok(`clés déchiffrables pour les ${slugs.length} cabinet(s)`);
+    } else {
+      ko(
+        `RYLA_KEK ne déchiffre pas la clé de : ${broken.join(", ")} — ` +
+          `signature et lecture des réponses échoueront. ` +
+          `Voir scripts/rewrap-dek.mjs.`,
+      );
+    }
+  }
 
   // --- Hygiène de configuration -------------------------------------------
   if (url.password === "ryla_app") {

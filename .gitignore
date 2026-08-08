@@ -18,3 +18,4 @@ cabinet-*.sql
 .pgdata/
 .vercel
 *.log
+rewrap-cle.sql

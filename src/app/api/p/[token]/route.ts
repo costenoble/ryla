@@ -78,6 +78,30 @@ export async function POST(
   const { tenantId, submissionId, tokenId } = resolution.token;
   const client = await requestContext();
 
+  try {
+    return await handle(body, { tenantId, submissionId, tokenId, audience: resolution.token.audience }, client);
+  } catch (error) {
+    // Sans ce filet, une erreur ici devient un 500 muet et le patient ne voit
+    // que « L'envoi a échoué » — impossible à diagnostiquer sans accès aux
+    // journaux de la plateforme. Le message reste côté serveur ; le patient
+    // reçoit un code stable, jamais le détail technique.
+    console.error("[portail] échec du traitement", error);
+    return NextResponse.json({ error: "server_error" }, { status: 500 });
+  }
+}
+
+async function handle(
+  body: z.infer<typeof bodySchema>,
+  ids: {
+    tenantId: string;
+    submissionId: string;
+    tokenId: string;
+    audience: string;
+  },
+  client: Awaited<ReturnType<typeof requestContext>>,
+) {
+  const { tenantId, submissionId, tokenId, audience } = ids;
+
   return withTenant({ tenantId }, async (tx) => {
     const submission = await getSubmission(tx, submissionId);
     if (!submission) {
@@ -169,7 +193,7 @@ export async function POST(
         birthDate: submission.patient?.birthDate?.toISOString().slice(0, 10) ?? null,
       },
       signer: {
-        role: resolution.token.audience,
+        role: audience,
         name: body.signerName,
         level: signatureBlock?.level ?? "simple",
       },
@@ -216,7 +240,7 @@ export async function POST(
       },
       signature: {
         signerName: body.signerName,
-        signerRole: resolution.token.audience,
+        signerRole: audience,
         signedAt,
         statements,
         imagePng: signatureImage,
@@ -248,7 +272,7 @@ export async function POST(
         tenant_id, submission_id, signer_role, signer_name, level,
         document_hash, document_id, signature_image, proof, signed_at
       ) values (
-        ${tenantId}, ${submissionId}, ${resolution.token.audience},
+        ${tenantId}, ${submissionId}, ${audience},
         ${body.signerName}, ${signatureBlock?.level ?? "simple"}, ${sha256},
         ${document?.id ?? null}, ${signatureImage},
         ${tx.json(proof as never)}, ${signedAt}
