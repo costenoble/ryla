@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { recordAudit } from "@/lib/audit";
 import { requestContext, requireSession } from "@/lib/auth";
 import { withTenant } from "@/lib/db";
@@ -125,8 +124,16 @@ export async function createAndSend(
       },
     );
 
-    revalidatePath("/dossiers");
-    revalidatePath("/tableau-de-bord");
+    // Pas de revalidatePath() ici : ces deux pages sont déjà en
+    // `force-dynamic`, elles relisent la base à chaque navigation — l'appel
+    // serait sans effet utile. Il a en revanche un effet nuisible bien réel :
+    // régénérer une page protégée par (praticien)/layout.tsx en arrière-plan
+    // exécute son propre requireSession(), hors du contexte de cookies de la
+    // requête en cours. Ce second appel échoue, et le redirect() qu'il déclenche
+    // écrase la réponse de l'action — l'utilisateur atterrit sur /connexion
+    // alors que l'envoi a réussi. Diagnostiqué en traçant chaque étape de
+    // loadSession() : la session était bien résolue une première fois avec
+    // succès, suivie d'un second appel sans aucun cookie.
 
     return {
       status: "created",

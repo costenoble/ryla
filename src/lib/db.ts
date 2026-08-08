@@ -65,39 +65,6 @@ export function db(): Db {
   return globalRef.__rylaPool;
 }
 
-/**
- * Contournement — préchauffe la connexion avant la toute première requête
- * réelle d'une Server Action.
- *
- * Bug constaté sur Vercel (Fluid Compute + Next.js 15 + Server Actions liées
- * via `useActionState`, rendues sous `(praticien)/layout.tsx`) : la fonction
- * liée au bouton ne s'exécutait tout simplement jamais — aucune ligne de son
- * corps n'était atteinte, y compris une écriture inconditionnelle placée en
- * tout premier, et sans la moindre erreur observable. L'utilisateur se
- * retrouvait renvoyé sur `/connexion`.
- *
- * Isolé par élimination : le même code, précédé d'une requête base « pour
- * rien » (sans rapport avec la logique métier), s'exécutait normalement à
- * chaque tentative. Sans elle, l'échec était systématique. Avec elle,
- * systématiquement résolu. Le mécanisme exact (probablement une course entre
- * l'établissement de connexion au pooler Supabase et la résolution de
- * l'action côté Next.js/Vercel) n'a pas pu être confirmé au-delà de cette
- * preuve empirique — aucun journal d'exécution n'était accessible depuis cet
- * environnement pour aller plus loin.
- *
- * À retirer si une version ultérieure de Next.js ou du builder Vercel corrige
- * ce point ; en attendant, appeler cette fonction en tout début de toute
- * nouvelle Server Action rendue sous `(praticien)/`.
- */
-export async function warmPool(): Promise<void> {
-  try {
-    await db()`select 1`;
-  } catch {
-    // Un échec ici n'est pas plus grave qu'un échec de la requête réelle qui
-    // suit : on laisse celle-ci produire l'erreur qui compte.
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Garde-fou de démarrage
 // ---------------------------------------------------------------------------

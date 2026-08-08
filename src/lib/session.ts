@@ -1,5 +1,5 @@
 import { generateToken, hashToken } from "./crypto";
-import { warmPool, withTenant, type Tx } from "./db";
+import { withTenant, type Tx } from "./db";
 import { resolveTenantBySlug, type TenantSummary } from "./tenant";
 
 /**
@@ -64,13 +64,6 @@ export async function loadSession(
   if (!cookieValue) return null;
   const parts = splitCookie(cookieValue);
   if (!parts) return null;
-
-  // Contournement délibéré — voir warmPool() dans db.ts pour le détail et les
-  // preuves : sur Vercel, la première requête d'une Server Action liée à
-  // useActionState sous (praticien)/layout.tsx échouait systématiquement (la
-  // fonction ne s'exécutait jamais, sans erreur observable) tant qu'aucune
-  // requête base « pour rien » ne la précédait. Cet appel absorbe ce problème.
-  await warmPool();
 
   const tenant = await resolveTenantBySlug(parts.slug);
   if (!tenant) return null;

@@ -9,16 +9,15 @@ import { loadSession, SESSION_COOKIE, type AuthenticatedSession } from "./sessio
  * Séparée de `session.ts` pour que la logique de session reste testable sans
  * embarquer `next/headers`.
  *
- * `currentSession()` est appelée plusieurs fois par requête et sans lien entre
- * elles : une fois par le layout praticien, une fois par la page, une fois par
- * l'action serveur qu'elle déclenche. Chaque appel rouvrait sa propre
- * transaction sur l'unique connexion du pool serverless (`max: 1`) — deux
- * transactions dos à dos sur cette connexion partagée pouvaient se marcher
- * dessus, et un envoi de document sur deux se retrouvait déconnecté au milieu
- * de l'action, sans qu'aucune ligne ne soit écrite.
+ * `currentSession()` est appelée plusieurs fois par requête : par le layout
+ * praticien, par la page, puis par l'action serveur qu'elle déclenche.
+ * `cache()` mémorise le résultat pour la durée de la requête, ce qui ramène
+ * trois allers-retours base à un seul.
  *
- * `cache()` mémorise le résultat pour la durée de la requête : la session
- * n'est résolue qu'une fois, où qu'elle soit demandée.
+ * C'est une optimisation, pas un correctif : la mémorisation ne franchit pas
+ * les frontières de requête, et n'aide donc en rien lorsqu'un rendu est
+ * déclenché en arrière-plan hors du contexte de cookies (cf. le commentaire
+ * sur `revalidatePath` dans `lib/actions/dossiers.ts`).
  */
 export const currentSession = cache(
   async (): Promise<AuthenticatedSession | null> => {
