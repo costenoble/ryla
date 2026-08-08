@@ -19,3 +19,4 @@ cabinet-*.sql
 .vercel
 *.log
 rewrap-cle.sql
+a-passer-dans-supabase.sql
