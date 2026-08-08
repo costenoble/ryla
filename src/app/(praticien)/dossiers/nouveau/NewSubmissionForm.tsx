@@ -18,8 +18,11 @@ const KIND_LABELS: Record<string, string> = {
 
 export function NewSubmissionForm({
   templates,
+  patient,
 }: {
   templates: { id: string; title: string; kind: string }[];
+  /** Pré-rempli quand l'envoi part d'une fiche patient. */
+  patient?: { firstName: string; lastName: string; birthDate: string; email: string };
 }) {
   const [state, formAction, pending] = useActionState(createAndSend, initial);
 
@@ -42,23 +45,47 @@ export function NewSubmissionForm({
 
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Prénom" htmlFor="firstName" required>
-            <input id="firstName" name="firstName" required className={inputClass} />
+            <input
+              id="firstName"
+              name="firstName"
+              required
+              defaultValue={patient?.firstName}
+              className={inputClass}
+            />
           </Field>
           <Field label="Nom" htmlFor="lastName" required>
-            <input id="lastName" name="lastName" required className={inputClass} />
+            <input
+              id="lastName"
+              name="lastName"
+              required
+              defaultValue={patient?.lastName}
+              className={inputClass}
+            />
           </Field>
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Date de naissance" htmlFor="birthDate">
-            <input id="birthDate" name="birthDate" type="date" className={inputClass} />
+            <input
+              id="birthDate"
+              name="birthDate"
+              type="date"
+              defaultValue={patient?.birthDate}
+              className={inputClass}
+            />
           </Field>
           <Field
             label="Email du patient"
             htmlFor="email"
             hint="Sert uniquement à retrouver le patient. Aucun document n'y est envoyé."
           >
-            <input id="email" name="email" type="email" className={inputClass} />
+            <input
+              id="email"
+              name="email"
+              type="email"
+              defaultValue={patient?.email}
+              className={inputClass}
+            />
           </Field>
         </div>
 
@@ -77,7 +104,7 @@ export function NewSubmissionForm({
             {pending ? "Création…" : "Créer le lien patient"}
           </Button>
           <Link
-            href="/dossiers"
+            href="/patients"
             className="text-sm font-medium text-muted transition hover:text-body"
           >
             Annuler
@@ -154,7 +181,7 @@ function Result({ state }: { state: Extract<NewSubmissionState, { status: "creat
               Ouvrir le portail patient
             </ButtonLink>
             <ButtonLink href={`/dossiers/${state.submissionId}`} variant="outline">
-              Voir le dossier
+              Voir le document
             </ButtonLink>
             <ButtonLink href="/dossiers/nouveau" variant="ghost">
               Nouvel envoi

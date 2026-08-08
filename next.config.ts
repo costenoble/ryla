@@ -21,7 +21,7 @@ const nextConfig: NextConfig = {
       },
       {
         // Le lien magique ne doit jamais être mis en cache par un proxy.
-        source: "/p/:path*",
+        source: "/formulaire/:path*",
         headers: [
           { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, private" },
           { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },

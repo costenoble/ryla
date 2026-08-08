@@ -6,28 +6,39 @@ import { EmptyState, PageHeader, ButtonLink } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { withTenant } from "@/lib/db";
 import { listTemplates } from "@/lib/repos/forms";
+import { getPatient } from "@/lib/repos/patients";
 import { NewSubmissionForm } from "./NewSubmissionForm";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Nouvel envoi" };
 
-export default async function NouveauDossierPage() {
+export default async function NouveauDossierPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ patient?: string }>;
+}) {
   const session = await requireSession();
-  const templates = await withTenant({ tenantId: session.tenant.id }, (tx) =>
-    listTemplates(tx),
-  );
+  const { patient: patientId } = await searchParams;
 
-  const usable = templates.filter((template) => template.currentVersionId);
+  const data = await withTenant({ tenantId: session.tenant.id }, async (tx) => ({
+    templates: await listTemplates(tx),
+    // Envoi depuis une fiche patient : on pré-remplit plutôt que de faire
+    // ressaisir un nom déjà connu, avec le risque de doublon que ça implique.
+    patient: patientId ? await getPatient(tx, patientId) : null,
+  }));
+
+  const usable = data.templates.filter((template) => template.currentVersionId);
+  const patient = data.patient;
 
   return (
     <div className="mx-auto max-w-3xl">
       <FadeUp>
         <Link
-          href="/dossiers"
+          href={patient ? `/patients/${patient.id}` : "/patients"}
           className="inline-flex items-center gap-1.5 text-sm font-medium text-muted transition hover:text-body"
         >
           <IconArrowLeft className="size-4" />
-          Dossiers
+          {patient ? `${patient.firstName} ${patient.lastName}` : "Patients"}
         </Link>
 
         <div className="mt-4">
@@ -55,6 +66,16 @@ export default async function NouveauDossierPage() {
               title: template.title,
               kind: template.kind,
             }))}
+            patient={
+              patient
+                ? {
+                    firstName: patient.firstName,
+                    lastName: patient.lastName,
+                    birthDate: patient.birthDate?.toISOString().slice(0, 10) ?? "",
+                    email: patient.email ?? "",
+                  }
+                : undefined
+            }
           />
         </FadeUp>
       )}

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   IconDashboard,
-  IconFolder,
+  IconUsers,
   IconReceipt,
   IconTemplate,
   type IconProps,
@@ -28,7 +28,7 @@ type NavItem = {
 
 const ITEMS: NavItem[] = [
   { href: "/tableau-de-bord", label: "Tableau de bord", Icon: IconDashboard },
-  { href: "/dossiers", label: "Dossiers", Icon: IconFolder },
+  { href: "/patients", label: "Patients", Icon: IconUsers },
   { href: "/devis", label: "Devis", Icon: IconReceipt },
   { href: "/modeles", label: "Modèles", Icon: IconTemplate },
 ];

@@ -20,3 +20,4 @@ cabinet-*.sql
 *.log
 rewrap-cle.sql
 a-passer-dans-supabase.sql
+migration-*.sql

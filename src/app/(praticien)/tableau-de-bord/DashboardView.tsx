@@ -86,7 +86,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
       {data.criticalCount > 0 ? (
         <FadeUp delay={0.05}>
           <Link
-            href="/dossiers"
+            href="/patients?filtre=vigilance"
             className="mb-6 flex items-center gap-3.5 rounded-2xl border border-flame-200 bg-flame-50 p-4 transition hover:border-flame-400"
           >
             <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-flame-600 text-white">

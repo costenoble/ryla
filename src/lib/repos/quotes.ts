@@ -29,11 +29,17 @@ export type QuoteStatus =
   | "expired"
   | "cancelled";
 
+export type PaymentStatus = "unpaid" | "partial" | "paid" | "waived";
+
 export type QuoteRecord = {
   id: string;
   kind: QuoteKind;
   reference: string;
   status: QuoteStatus;
+  paymentStatus: PaymentStatus;
+  paidAmountCents: number;
+  paidAt: Date | null;
+  paymentNote: string | null;
   totalAmountCents: number;
   totalAmoCents: number;
   totalAmcCents: number;
@@ -65,6 +71,10 @@ type QuoteRow = {
   payload: Record<string, unknown>;
   patient_id: string | null;
   created_at: Date;
+  payment_status: PaymentStatus;
+  paid_amount_cents: string | number;
+  paid_at: Date | null;
+  payment_note: string | null;
 };
 
 // bigint revient en chaîne depuis Postgres : les centimes restent bien en deçà
@@ -87,6 +97,10 @@ function mapQuote(row: QuoteRow): QuoteRecord {
     payload: row.payload ?? {},
     patientId: row.patient_id,
     createdAt: row.created_at,
+    paymentStatus: row.payment_status,
+    paidAmountCents: Number(row.paid_amount_cents),
+    paidAt: row.paid_at,
+    paymentNote: row.payment_note,
   };
 }
 
@@ -94,7 +108,8 @@ const QUOTE_COLUMNS = `
   id, kind, reference, status, total_amount_cents, total_amo_cents,
   total_amc_cents, remaining_charge_cents, validity_days,
   reflection_period_days, reflection_starts_at, reflection_ends_at,
-  accepted_at, payload, patient_id, created_at
+  accepted_at, payload, patient_id, created_at,
+  payment_status, paid_amount_cents, paid_at, payment_note
 `;
 
 export async function createQuote(
@@ -269,4 +284,48 @@ export function quoteReflectionStatus(quote: QuoteRecord, now = new Date()) {
     startsAt: quote.reflectionStartsAt,
     now,
   });
+}
+
+
+/**
+ * Devis d'un patient, pour sa fiche.
+ */
+export async function listQuotesForPatient(
+  tx: Tx,
+  patientId: string,
+): Promise<QuoteRecord[]> {
+  const rows = await tx<QuoteRow[]>`
+    select ${tx.unsafe(QUOTE_COLUMNS)} from quotes
+    where patient_id = ${patientId}
+    order by created_at desc
+  `;
+  return rows.map(mapQuote);
+}
+
+/**
+ * Enregistre un règlement saisi par le cabinet.
+ *
+ * Le montant est plafonné au reste à charge : au-delà, ce n'est plus un
+ * règlement mais une erreur de saisie, et un « payé » supérieur au dû
+ * fausserait tous les totaux du cabinet.
+ */
+export async function setQuotePayment(
+  tx: Tx,
+  quoteId: string,
+  input: { status: PaymentStatus; paidAmountCents: number; note?: string | null },
+): Promise<void> {
+  await tx`
+    update quotes set
+      payment_status = ${input.status},
+      paid_amount_cents = least(
+        greatest(${Math.max(0, Math.round(input.paidAmountCents))}, 0),
+        remaining_charge_cents
+      ),
+      paid_at = case
+        when ${input.status} in ('paid', 'partial') then coalesce(paid_at, now())
+        else null
+      end,
+      payment_note = ${input.note || null}
+    where id = ${quoteId}
+  `;
 }

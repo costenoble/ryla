@@ -31,7 +31,7 @@ describe("buildPortalUrl", () => {
 
     const url = buildPortalUrl("cabinet-ryla", "abc123");
 
-    expect(url).toBe("https://ryla-one.vercel.app/p/abc123");
+    expect(url).toBe("https://ryla-one.vercel.app/formulaire/abc123");
     expect(url).not.toContain("cabinet-ryla.");
   });
 
@@ -41,7 +41,7 @@ describe("buildPortalUrl", () => {
 
     const url = buildPortalUrl("cabinet-martin", "abc123");
 
-    expect(url).toBe("https://cabinet-martin.ryla.fr/p/abc123");
+    expect(url).toBe("https://cabinet-martin.ryla.fr/formulaire/abc123");
   });
 
   it("retire le www éventuel avant de préfixer le sous-domaine", () => {
@@ -50,7 +50,7 @@ describe("buildPortalUrl", () => {
 
     const url = buildPortalUrl("cabinet-martin", "abc123");
 
-    expect(url).toBe("https://cabinet-martin.ryla.fr/p/abc123");
+    expect(url).toBe("https://cabinet-martin.ryla.fr/formulaire/abc123");
   });
 
   it("reste sur l'hôte courant en local, sans domaine personnalisé", () => {
@@ -59,6 +59,6 @@ describe("buildPortalUrl", () => {
 
     const url = buildPortalUrl("cabinet-martin", "abc123");
 
-    expect(url).toBe("http://localhost:3000/p/abc123");
+    expect(url).toBe("http://localhost:3000/formulaire/abc123");
   });
 });

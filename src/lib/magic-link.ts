@@ -71,7 +71,7 @@ export function buildPortalUrl(tenantSlug: string, rawToken: string): string {
   if (env.hasCustomTenantDomain) {
     base.hostname = `${tenantSlug}.${base.hostname.replace(/^www\./, "")}`;
   }
-  base.pathname = `/p/${rawToken}`;
+  base.pathname = `/formulaire/${rawToken}`;
   return base.toString();
 }
 

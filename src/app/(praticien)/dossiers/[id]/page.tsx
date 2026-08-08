@@ -91,11 +91,11 @@ export default async function DossierPage({
     <div>
       <FadeUp>
         <Link
-          href="/dossiers"
+          href={submission.patientId ? `/patients/${submission.patientId}` : "/patients"}
           className="inline-flex items-center gap-1.5 text-sm font-medium text-muted transition hover:text-body"
         >
           <IconArrowLeft className="size-4" />
-          Dossiers
+          {patientName}
         </Link>
 
         <header className="mt-4 mb-6 flex flex-wrap items-end justify-between gap-4">
