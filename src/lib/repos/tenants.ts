@@ -16,11 +16,51 @@ export type TenantSelf = {
   specialty: "dentaire" | "esthetique" | "mixte";
   legalName: string | null;
   siret: string | null;
+  finess: string | null;
   address: Record<string, string>;
   branding: TenantBranding;
   dpoContact: Record<string, string>;
   legalNotice: string | null;
 };
+
+/**
+ * Champs modifiables depuis les réglages.
+ *
+ * Ni `slug` ni `specialty` : le premier porte les liens déjà envoyés aux
+ * patients, le second détermine la bibliothèque et le régime de devis. Les
+ * changer depuis une page de réglages casserait des liens en cours ou
+ * ferait basculer un cabinet de régime juridique sans qu'il le demande.
+ */
+export type TenantSettingsInput = {
+  name: string;
+  legalName: string | null;
+  siret: string | null;
+  finess: string | null;
+  address: Record<string, string>;
+  branding: TenantBranding;
+  dpoContact: Record<string, string>;
+  legalNotice: string | null;
+};
+
+export async function updateTenantSelf(
+  tx: Tx,
+  input: TenantSettingsInput,
+): Promise<void> {
+  // Pas de `where id = …` : le RLS restreint déjà `tenants` à la ligne du
+  // cabinet en contexte, et sa politique d'UPDATE porte le même `with check`.
+  await tx`
+    update tenants set
+      name = ${input.name},
+      legal_name = ${input.legalName},
+      siret = ${input.siret},
+      finess = ${input.finess},
+      address = ${tx.json(input.address as never)},
+      branding = ${tx.json(input.branding as never)},
+      dpo_contact = ${tx.json(input.dpoContact as never)},
+      legal_notice = ${input.legalNotice},
+      updated_at = now()
+  `;
+}
 
 export async function getTenantSelf(tx: Tx): Promise<TenantSelf> {
   const [row] = await tx<
@@ -31,13 +71,14 @@ export async function getTenantSelf(tx: Tx): Promise<TenantSelf> {
       specialty: TenantSelf["specialty"];
       legal_name: string | null;
       siret: string | null;
+      finess: string | null;
       address: Record<string, string>;
       branding: TenantBranding;
       dpo_contact: Record<string, string>;
       legal_notice: string | null;
     }[]
   >`
-    select id, slug, name, specialty, legal_name, siret, address, branding,
+    select id, slug, name, specialty, legal_name, siret, finess, address, branding,
            dpo_contact, legal_notice
     from tenants
   `;
@@ -51,6 +92,7 @@ export async function getTenantSelf(tx: Tx): Promise<TenantSelf> {
     specialty: row.specialty,
     legalName: row.legal_name,
     siret: row.siret,
+    finess: row.finess,
     address: row.address ?? {},
     branding: row.branding ?? {},
     dpoContact: row.dpo_contact ?? {},

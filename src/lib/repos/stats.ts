@@ -161,4 +161,8 @@ export const ACTION_LABELS: Record<string, string> = {
   "document.downloaded": "Document téléchargé",
   "auth.login": "Connexion",
   "auth.login_failed": "Échec de connexion",
+  "auth.login_blocked": "Connexion bloquée (trop de tentatives)",
+  "submission.link_reissued": "Lien renvoyé au patient",
+  "notification.sent": "Notification envoyée",
+  "tenant.settings_updated": "Réglages du cabinet modifiés",
 };

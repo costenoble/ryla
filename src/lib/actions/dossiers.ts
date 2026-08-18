@@ -2,10 +2,20 @@
 
 import { recordAudit } from "@/lib/audit";
 import { requestContext, requireSession } from "@/lib/auth";
-import { withTenant } from "@/lib/db";
+import { withTenant, type Tx } from "@/lib/db";
 import { issueAccessToken } from "@/lib/magic-link";
+import { patientInvitation, trySend } from "@/lib/notifications";
 import { getTemplate } from "@/lib/repos/forms";
 import { createSubmission, markSent } from "@/lib/repos/submissions";
+
+/** Adresse de la fiche patient, quand le formulaire d'envoi n'en portait pas. */
+async function patientEmail(tx: Tx, patientId: string | undefined): Promise<string | null> {
+  if (!patientId) return null;
+  const [row] = await tx<{ email: string | null }[]>`
+    select email from patients where id = ${patientId}
+  `;
+  return row?.email ?? null;
+}
 
 /**
  * Envoi d'un document à un patient.
@@ -35,6 +45,10 @@ export type NewSubmissionState =
       submissionId: string;
       patientName: string;
       expiresAt: string;
+      /** Adresse réellement notifiée, ou null si le lien est à transmettre à la main. */
+      emailedTo: string | null;
+      /** Renseigné si l'envoi a échoué : le lien reste affiché, à copier. */
+      deliveryError: string | null;
     };
 
 export async function createAndSend(
@@ -119,7 +133,10 @@ export async function createAndSend(
         return {
           url: token.url,
           submissionId,
-          expiresAt: token.expiresAt.toISOString(),
+          expiresAt: token.expiresAt,
+          // L'adresse saisie prime sur celle de la fiche : c'est la plus
+          // récente, et c'est celle que le praticien a sous les yeux.
+          recipient: email || (await patientEmail(tx, patientId)),
         };
       },
     );
@@ -135,10 +152,49 @@ export async function createAndSend(
     // loadSession() : la session était bien résolue une première fois avec
     // succès, suivie d'un second appel sans aucun cookie.
 
+    // L'envoi a lieu hors transaction, et volontairement : garder une
+    // transaction ouverte le temps d'un aller-retour SMTP immobiliserait une
+    // connexion base sur la latence d'un tiers. Et si l'envoi échoue, le
+    // dossier doit rester créé — le lien s'affiche, il se transmet à la main.
+    const delivery = result.recipient
+      ? await trySend(
+          patientInvitation({
+            to: result.recipient,
+            cabinetName: session.tenant.name,
+            url: result.url,
+            expiresAt: result.expiresAt,
+          }),
+        )
+      : { sent: false, error: null };
+
+    if (delivery.sent) {
+      await withTenant(
+        { tenantId: session.tenant.id, actorId: session.user.id },
+        (tx) =>
+          recordAudit(tx, session.tenant.id, {
+            actorType: "user",
+            actorId: session.user.id,
+            actorLabel: session.user.fullName,
+            action: "notification.sent",
+            objectType: "submission",
+            objectId: result.submissionId,
+            ip: client.ip,
+            userAgent: client.userAgent,
+            // Le destinataire, pas le lien : le journal est consultable depuis
+            // l'interface et ne doit pas permettre de rejouer un accès.
+            metadata: { kind: "patient_invitation", to: result.recipient },
+          }),
+      );
+    }
+
     return {
       status: "created",
       patientName: `${firstName} ${lastName}`,
-      ...result,
+      url: result.url,
+      submissionId: result.submissionId,
+      expiresAt: result.expiresAt.toISOString(),
+      emailedTo: delivery.sent ? result.recipient : null,
+      deliveryError: delivery.error,
     };
   } catch (error) {
     return {

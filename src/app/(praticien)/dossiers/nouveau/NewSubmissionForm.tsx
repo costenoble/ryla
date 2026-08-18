@@ -131,14 +131,37 @@ function Result({ state }: { state: Extract<NewSubmissionState, { status: "creat
             <IconCheck className="size-5" />
           </span>
           <div>
-            <h2 className="font-bold text-positive">Lien créé pour {state.patientName}</h2>
+            <h2 className="font-bold text-positive">
+              {state.emailedTo
+                ? `Document envoyé à ${state.patientName}`
+                : `Lien créé pour ${state.patientName}`}
+            </h2>
             <p className="mt-0.5 text-sm text-positive/90">
-              Valable jusqu'au {expires}. Il se désactive dès la signature.
+              {state.emailedTo
+                ? `Message remis à ${state.emailedTo}. Lien valable jusqu'au ${expires}.`
+                : `Valable jusqu'au ${expires}. Il se désactive dès la signature.`}
             </p>
           </div>
         </div>
 
         <div className="p-5">
+          {/* Un envoi qui a échoué ne doit pas se deviner : le praticien croirait
+              le patient prévenu et attendrait une signature qui ne viendra pas. */}
+          {state.deliveryError ? (
+            <p className="mb-5 rounded-md bg-caution-soft px-3.5 py-3 text-sm leading-relaxed text-caution">
+              <span className="font-semibold">L'email n'est pas parti.</span> Le dossier
+              est bien créé et le lien ci-dessous reste valable — transmettez-le au
+              patient par le canal de votre choix.
+            </p>
+          ) : null}
+
+          {!state.emailedTo && !state.deliveryError ? (
+            <p className="mb-5 rounded-md bg-canvas px-3.5 py-3 text-sm leading-relaxed text-muted">
+              Aucune adresse email n'est renseignée pour ce patient : le lien est à
+              transmettre à la main.
+            </p>
+          ) : null}
+
           <label
             htmlFor="lien"
             className="block text-sm font-semibold text-body"

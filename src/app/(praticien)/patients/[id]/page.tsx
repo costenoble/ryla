@@ -113,6 +113,9 @@ export default async function PatientPage({
             <ButtonLink href={`/dossiers/nouveau?patient=${patient.id}`}>
               Envoyer un document
             </ButtonLink>
+            <ButtonLink href={`/devis/nouveau?patient=${patient.id}`} variant="outline">
+              Nouveau devis
+            </ButtonLink>
             <ButtonLink href={`/patients/${patient.id}/modifier`} variant="outline">
               Modifier
             </ButtonLink>

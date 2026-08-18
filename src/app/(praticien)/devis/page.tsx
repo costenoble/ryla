@@ -1,7 +1,15 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { IconCheck, IconClock, IconReceipt } from "@/components/icons";
 import { FadeUp, Stagger, StaggerItem } from "@/components/motion";
-import { Badge, Card, EmptyState, PageHeader, type BadgeTone } from "@/components/ui";
+import {
+  Badge,
+  ButtonLink,
+  Card,
+  EmptyState,
+  PageHeader,
+  type BadgeTone,
+} from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { formatCents } from "@/lib/cerfa";
 import { withTenant } from "@/lib/db";
@@ -42,6 +50,7 @@ export default async function DevisPage() {
                   inReflection > 0 ? ` · ${inReflection} en délai de réflexion` : ""
                 }`
           }
+          action={<ButtonLink href="/devis/nouveau">Nouveau devis</ButtonLink>}
         />
       </FadeUp>
 
@@ -50,7 +59,8 @@ export default async function DevisPage() {
           <EmptyState
             icon={<IconReceipt className="size-5" />}
             title="Aucun devis pour l'instant"
-            description="Importez un devis depuis votre logiciel métier ou créez-en un depuis un dossier."
+            description="Composez un devis à partir du référentiel CCAM / NGAP, avec calcul du reste à charge et aperçu."
+            action={<ButtonLink href="/devis/nouveau">Créer un devis</ButtonLink>}
           />
         </FadeUp>
       ) : (
@@ -75,7 +85,12 @@ function QuoteCard({ quote }: { quote: QuoteRecord }) {
       <div className="flex flex-wrap items-start justify-between gap-4 p-5">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2.5">
-            <h2 className="tabular font-bold text-body">{quote.reference}</h2>
+            <Link
+              href={`/devis/${quote.id}`}
+              className="tabular font-bold text-body transition hover:text-brand-700"
+            >
+              {quote.reference}
+            </Link>
             <Badge tone={status?.tone ?? "neutral"}>{status?.label ?? quote.status}</Badge>
           </div>
           <p className="mt-1 text-sm text-muted">

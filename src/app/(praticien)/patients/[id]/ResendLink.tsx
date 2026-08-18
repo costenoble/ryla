@@ -28,11 +28,19 @@ export function ResendLink({ submissionId }: { submissionId: string }) {
       <div className="mt-3 rounded-lg border border-emerald-100 bg-positive-soft p-3.5">
         <p className="flex items-center gap-2 text-sm font-semibold text-positive">
           <IconCheck className="size-4" />
-          Nouveau lien créé — valable jusqu'au {expires}
+          {state.emailedTo
+            ? `Lien renvoyé à ${state.emailedTo} — valable jusqu'au ${expires}`
+            : `Nouveau lien créé — valable jusqu'au ${expires}`}
         </p>
         <p className="mt-1 text-xs text-positive/90">
           Le lien précédent est désactivé : un seul lien reste valide à la fois.
         </p>
+        {state.deliveryError ? (
+          <p className="mt-2 flex items-start gap-1.5 text-xs font-semibold text-caution">
+            <IconAlert className="mt-0.5 size-3.5 shrink-0" />
+            L'email n'est pas parti — transmettez le lien ci-dessous vous-même.
+          </p>
+        ) : null}
         <div className="mt-2.5 flex flex-col gap-2 sm:flex-row">
           <input
             readOnly

@@ -85,6 +85,45 @@ export const env = {
     return Number(optional("MAGIC_LINK_TTL_HOURS", "168"));
   },
   /**
+   * Transport des notifications sortantes.
+   *
+   * `console` par défaut, et c'est délibéré : un environnement mal configuré
+   * doit écrire dans les journaux, jamais partir dans la nature. On active
+   * l'envoi réel en le demandant explicitement.
+   */
+  get mailDriver() {
+    return optional("MAIL_DRIVER", "console");
+  },
+  /**
+   * SMTP plutôt que l'API d'un prestataire : c'est le seul protocole que tous
+   * savent parler. Changer de fournisseur — y compris pour le relais d'OVH au
+   * moment de la bascule HDS — se fait en changeant ces variables, pas le code.
+   */
+  get smtp() {
+    return {
+      host: required("SMTP_HOST"),
+      port: Number(optional("SMTP_PORT", "587")),
+      user: process.env.SMTP_USER ?? null,
+      password: process.env.SMTP_PASSWORD ?? null,
+      // 465 est le port du TLS implicite ; 587 fait un STARTTLS après connexion.
+      secure: optional("SMTP_SECURE", "") === "true" || optional("SMTP_PORT", "587") === "465",
+    };
+  },
+  /**
+   * Expéditeur des emails.
+   *
+   * L'adresse appartient à Ryla, pas au cabinet : usurper le domaine du
+   * praticien ferait échouer SPF et DKIM, et les messages finiraient en
+   * indésirables — c'est-à-dire que le patient ne recevrait jamais son lien.
+   * Le nom du cabinet apparaît dans le libellé, pas dans le domaine.
+   */
+  get mailFrom() {
+    return optional("MAIL_FROM", "Ryla <ne-pas-repondre@ryla.fr>");
+  },
+  get mailReplyTo() {
+    return process.env.MAIL_REPLY_TO ?? null;
+  },
+  /**
    * `postgres` par défaut : c'est le seul pilote qui fonctionne partout, y
    * compris sur une plateforme serverless au système de fichiers éphémère.
    */

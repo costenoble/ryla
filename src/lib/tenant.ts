@@ -15,6 +15,19 @@ export type TenantBranding = {
   primaryColor?: string;
   accentColor?: string;
   senderName?: string;
+  /**
+   * En-tête porté par les devis et les documents signés.
+   *
+   * Deux formes, parce que les cabinets se partagent en deux : ceux qui ont
+   * déjà un papier à en-tête scanné, et ceux qui n'ont qu'un bloc d'adresse.
+   * Obliger les seconds à fabriquer une image serait une friction inutile.
+   */
+  letterheadMode?: "none" | "text" | "image";
+  /** Bloc libre : raison sociale, adresse, téléphone, n° RPPS… */
+  letterheadText?: string;
+  /** Clé dans le magasin de documents — l'image ne vit pas dans le jsonb. */
+  letterheadImageKey?: string;
+  letterheadImageType?: string;
 };
 
 export type TenantSummary = {

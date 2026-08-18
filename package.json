@@ -23,15 +23,18 @@
     "db:baseline": "tsx db/migrate.ts --baseline",
     "db:reset": "tsx db/migrate.ts --reset",
     "db:seed": "tsx db/seed.ts",
+    "nomenclature:starter": "tsx scripts/import-nomenclature.ts",
+    "nomenclature:import": "tsx scripts/import-nomenclature.ts",
     "cabinet:create": "tsx scripts/create-cabinet.ts",
     "cabinet:sql": "tsx scripts/export-cabinet-sql.ts",
     "smoke": "tsx scripts/smoke.ts",
     "screenshots": "tsx scripts/screenshots.ts",
-    "setup": "npm run db:up && npm run db:migrate && npm run db:seed"
+    "setup": "npm run db:up && npm run db:migrate && npm run nomenclature:starter && npm run db:seed"
   },
   "dependencies": {
     "framer-motion": "^12.43.0",
     "next": "^15.5.4",
+    "nodemailer": "^9.0.5",
     "pdf-lib": "^1.17.1",
     "postgres": "^3.4.7",
     "react": "^19.1.1",
@@ -41,6 +44,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.13",
     "@types/node": "^22.15.3",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
     "playwright": "^1.62.0",

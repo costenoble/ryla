@@ -8,6 +8,12 @@ import { verifyPassword } from "@/lib/crypto";
 import { withTenant } from "@/lib/db";
 import { env } from "@/lib/env";
 import {
+  checkLoginThrottle,
+  clearLoginFailures,
+  recordLoginFailure,
+  throttleMessage,
+} from "@/lib/login-throttle";
+import {
   createSession,
   revokeSession,
   SESSION_COOKIE,
@@ -45,6 +51,23 @@ export async function login(
   const client = await requestContext();
 
   const result = await withTenant({ tenantId: tenant.id }, async (tx) => {
+    // Avant toute vérification de mot de passe : un compteur qui ne se
+    // déclencherait qu'après avoir comparé l'empreinte laisserait la porte
+    // ouverte au coût processeur de scrypt, qui est précisément ce qu'on ne
+    // veut pas offrir à un attaquant.
+    const throttle = await checkLoginThrottle(tx, { email, ip: client.ip });
+    if (!throttle.allowed) {
+      await recordAudit(tx, tenant.id, {
+        actorType: "anonymous",
+        action: "auth.login_blocked",
+        objectType: "user",
+        ip: client.ip,
+        userAgent: client.userAgent,
+        metadata: { email, scope: throttle.scope },
+      });
+      return { blocked: throttleMessage(throttle) } as const;
+    }
+
     const [user] = await tx<
       { id: string; password_hash: string | null; full_name: string }[]
     >`
@@ -55,6 +78,7 @@ export async function login(
     `;
 
     if (!user?.password_hash || !verifyPassword(password, user.password_hash)) {
+      await recordLoginFailure(tx, tenant.id, { email, ip: client.ip });
       await recordAudit(tx, tenant.id, {
         actorType: "anonymous",
         action: "auth.login_failed",
@@ -67,6 +91,10 @@ export async function login(
       });
       return null;
     }
+
+    // Les erreurs de frappe d'un praticien légitime ne doivent pas le laisser
+    // à un essai du blocage pour le quart d'heure suivant.
+    await clearLoginFailures(tx, email);
 
     const session = await createSession(tx, {
       tenantId: tenant.id,
@@ -94,6 +122,9 @@ export async function login(
 
   if (!result) {
     return { error: "Identifiants incorrects." };
+  }
+  if ("blocked" in result) {
+    return { error: result.blocked };
   }
 
   const store = await cookies();

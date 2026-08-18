@@ -4,6 +4,7 @@ import { recordAudit } from "@/lib/audit";
 import { requestContext, requireSession } from "@/lib/auth";
 import { withTenant } from "@/lib/db";
 import { issueAccessToken, revokeTokensForSubmission } from "@/lib/magic-link";
+import { patientReminder, trySend } from "@/lib/notifications";
 import { getSubmission } from "@/lib/repos/submissions";
 
 /**
@@ -18,7 +19,13 @@ import { getSubmission } from "@/lib/repos/submissions";
 export type ResendState =
   | { status: "idle" }
   | { status: "error"; message: string }
-  | { status: "sent"; url: string; expiresAt: string };
+  | {
+      status: "sent";
+      url: string;
+      expiresAt: string;
+      emailedTo: string | null;
+      deliveryError: string | null;
+    };
 
 export async function resendDocumentLink(
   _previous: ResendState,
@@ -65,11 +72,51 @@ export async function resendDocumentLink(
           metadata: { template: submission.templateKey },
         });
 
-        return { url: token.url, expiresAt: token.expiresAt.toISOString() };
+        return {
+          url: token.url,
+          expiresAt: token.expiresAt,
+          recipient: submission.patient?.email ?? null,
+        };
       },
     );
 
-    return { status: "sent", ...result };
+    // Hors transaction : la latence d'un relais SMTP n'a pas à immobiliser une
+    // connexion base, et un envoi manqué ne doit pas annuler le nouveau lien.
+    const delivery = result.recipient
+      ? await trySend(
+          patientReminder({
+            to: result.recipient,
+            cabinetName: session.tenant.name,
+            url: result.url,
+          }),
+        )
+      : { sent: false, error: null };
+
+    if (delivery.sent) {
+      await withTenant(
+        { tenantId: session.tenant.id, actorId: session.user.id },
+        (tx) =>
+          recordAudit(tx, session.tenant.id, {
+            actorType: "user",
+            actorId: session.user.id,
+            actorLabel: session.user.fullName,
+            action: "notification.sent",
+            objectType: "submission",
+            objectId: submissionId,
+            ip: client.ip,
+            userAgent: client.userAgent,
+            metadata: { kind: "patient_reminder", to: result.recipient },
+          }),
+      );
+    }
+
+    return {
+      status: "sent",
+      url: result.url,
+      expiresAt: result.expiresAt.toISOString(),
+      emailedTo: delivery.sent ? result.recipient : null,
+      deliveryError: delivery.error,
+    };
   } catch (error) {
     return {
       status: "error",

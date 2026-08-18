@@ -4,8 +4,14 @@ import { recordAudit, verifyAuditChain } from "@/lib/audit";
 import { requestContext } from "@/lib/auth";
 import { validateAnswers } from "@/lib/branching";
 import { withTenant } from "@/lib/db";
+import { env } from "@/lib/env";
 import type { Answers } from "@/lib/form-schema";
 import { markTokenUsed, resolveAccessToken, revokeTokensForSubmission } from "@/lib/magic-link";
+import {
+  practitionerNotification,
+  trySend,
+  type OutboundMessage,
+} from "@/lib/notifications";
 import { renderSubmissionPdf } from "@/lib/pdf";
 import { buildProofBundle, normalizeDwell } from "@/lib/proof";
 import { getTenantSelf, formatAddress } from "@/lib/repos/tenants";
@@ -78,8 +84,21 @@ export async function POST(
   const { tenantId, submissionId, tokenId } = resolution.token;
   const client = await requestContext();
 
+  // Les messages sortants sont accumulés pendant la transaction et envoyés
+  // après elle : un relais SMTP lent immobiliserait sinon une connexion base
+  // pendant toute sa latence, et un relais en panne ferait échouer une
+  // signature déjà valide.
+  const notices: OutboundMessage[] = [];
+
   try {
-    return await handle(body, { tenantId, submissionId, tokenId, audience: resolution.token.audience }, client);
+    const response = await handle(
+      body,
+      { tenantId, submissionId, tokenId, audience: resolution.token.audience },
+      client,
+      notices,
+    );
+    for (const notice of notices) await trySend(notice);
+    return response;
   } catch (error) {
     // Sans ce filet, une erreur ici devient un 500 muet et le patient ne voit
     // que « L'envoi a échoué » — impossible à diagnostiquer sans accès aux
@@ -99,6 +118,7 @@ async function handle(
     audience: string;
   },
   client: Awaited<ReturnType<typeof requestContext>>,
+  notices: OutboundMessage[],
 ) {
   const { tenantId, submissionId, tokenId, audience } = ids;
 
@@ -302,6 +322,32 @@ async function handle(
     await markSigned(tx, submissionId);
     await markTokenUsed(tx, tokenId);
     await revokeTokensForSubmission(tx, submissionId);
+
+    // Le praticien est prévenu qu'un document l'attend — jamais avec le PDF en
+    // pièce jointe, et avec les seules initiales du patient : « Dupont a signé
+    // son consentement pour une rhinoplastie » est déjà une donnée de santé.
+    const [practitioner] = await tx<{ email: string }[]>`
+      select u.email
+      from submissions s
+      join users u on u.id = coalesce(s.assigned_to, s.created_by)
+      where s.id = ${submissionId} and u.is_active
+    `;
+
+    if (practitioner?.email) {
+      const initials = [submission.patient?.firstName, submission.patient?.lastName]
+        .map((part) => part?.trim()?.[0]?.toUpperCase() ?? "")
+        .join("");
+      notices.push(
+        practitionerNotification({
+          to: practitioner.email,
+          dashboardUrl: new URL(
+            `/dossiers/${submissionId}`,
+            env.appBaseUrl,
+          ).toString(),
+          patientInitials: initials || "—",
+        }),
+      );
+    }
 
     await recordAudit(tx, tenantId, {
       actorType: "patient",
