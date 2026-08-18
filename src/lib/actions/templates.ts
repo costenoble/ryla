@@ -8,6 +8,7 @@ import {
   validateDefinitionIntegrity,
   type FormDefinition,
 } from "@/lib/form-schema";
+import { library } from "@/lib/library";
 import {
   createTemplate,
   getTemplate,
@@ -162,6 +163,79 @@ export async function saveTemplate(
     return {
       status: "error",
       message: error instanceof Error ? error.message : "L'enregistrement a échoué.",
+    };
+  }
+}
+
+export type ImportState =
+  | { status: "idle" }
+  | { status: "error"; message: string }
+  | { status: "imported"; templateId: string };
+
+/**
+ * Installe un modèle de la bibliothèque Ryla dans le cabinet.
+ *
+ * La copie appartient au cabinet et s'édite librement, mais garde son
+ * `libraryRef` : c'est ce qui permettra plus tard de signaler qu'une version
+ * révisée du texte source est disponible — un consentement dont la rédaction a
+ * suivi une évolution de jurisprudence, par exemple.
+ */
+export async function importFromLibrary(
+  _previous: ImportState,
+  formData: FormData,
+): Promise<ImportState> {
+  const session = await requireSession();
+  const client = await requestContext();
+  const ref = String(formData.get("libraryRef") ?? "").trim();
+
+  const entry = library.find((candidate) => candidate.libraryRef === ref);
+  if (!entry) return { status: "error", message: "Modèle introuvable dans la bibliothèque." };
+
+  let definition: FormDefinition;
+  try {
+    definition = formDefinitionSchema.parse(entry.definition);
+  } catch {
+    return { status: "error", message: "Ce modèle de la bibliothèque est illisible." };
+  }
+
+  try {
+    const templateId = await withTenant(
+      { tenantId: session.tenant.id, actorId: session.user.id },
+      async (tx) => {
+        const key = await uniqueKey(tx, slugify(definition.title));
+        const created = await createTemplate(tx, {
+          tenantId: session.tenant.id,
+          key,
+          title: definition.title,
+          description: definition.intro ?? null,
+          kind: entry.kind,
+          specialty: entry.specialty,
+          libraryRef: entry.libraryRef,
+          definition,
+          createdBy: session.user.id,
+        });
+
+        await recordAudit(tx, session.tenant.id, {
+          actorType: "user",
+          actorId: session.user.id,
+          actorLabel: session.user.fullName,
+          action: "template.imported",
+          objectType: "form_template",
+          objectId: created.templateId,
+          ip: client.ip,
+          userAgent: client.userAgent,
+          metadata: { libraryRef: entry.libraryRef },
+        });
+
+        return created.templateId;
+      },
+    );
+
+    return { status: "imported", templateId };
+  } catch (error) {
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "L'import a échoué.",
     };
   }
 }
