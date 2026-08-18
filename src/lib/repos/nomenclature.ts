@@ -161,10 +161,11 @@ export function matchNomenclature(
       const code = normalize(entry.code);
       const label = normalize(`${entry.label} ${entry.shortLabel ?? ""}`);
       const haystack = `${code} ${label}`;
+      const tokens = haystack.split(/[^a-z0-9]+/).filter(Boolean);
 
-      // Tous les mots doivent apparaître : « couronne zircone » ne doit pas
+      // Tous les mots doivent correspondre : « couronne zircone » ne doit pas
       // remonter toutes les couronnes.
-      if (!words.every((word) => haystack.includes(word))) return null;
+      if (!words.every((word) => matchesWord(tokens, haystack, word))) return null;
 
       // Un code saisi en entier est une intention sans ambiguïté : il passe
       // devant, même si un libellé contient la même suite de lettres.
@@ -179,6 +180,34 @@ export function matchNomenclature(
 
   scored.sort((a, b) => b.score - a.score || a.entry.label.localeCompare(b.entry.label));
   return scored.slice(0, limit).map((item) => item.entry);
+}
+
+/**
+ * Un mot de la recherche correspond-il à l'acte ?
+ *
+ * La correspondance exacte ne suffit pas. Un praticien tape « céramic »,
+ * « ceramo », « couronn » — des troncatures et des fautes de frappe qui, avec
+ * une simple inclusion de chaîne, ne remontent rien. Or une recherche qui ne
+ * remonte rien ne renvoie pas le praticien vers le bon acte : elle l'envoie
+ * saisir le code à la main, donc à côté.
+ *
+ * D'où la tolérance au préfixe commun : « céramic » et « céramique » partagent
+ * six lettres, ce qui suffit. Le seuil reste proportionnel à ce qui a été tapé,
+ * pour que « ceram » ne ramène pas la moitié du catalogue.
+ */
+function matchesWord(tokens: string[], haystack: string, word: string): boolean {
+  if (haystack.includes(word)) return true;
+  if (word.length < 4) return false;
+
+  const needed = Math.max(4, Math.ceil(word.length * 0.75));
+  return tokens.some((token) => commonPrefix(token, word) >= needed);
+}
+
+function commonPrefix(a: string, b: string): number {
+  const max = Math.min(a.length, b.length);
+  let index = 0;
+  while (index < max && a[index] === b[index]) index += 1;
+  return index;
 }
 
 function normalize(value: string): string {

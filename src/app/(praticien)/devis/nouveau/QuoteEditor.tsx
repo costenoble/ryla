@@ -137,13 +137,13 @@ export function QuoteEditor({
     setQuery("");
   };
 
-  const addBlank = () => {
+  const addBlank = (description = "") => {
     setLines((previous) => [
       ...previous,
       {
         key: nextKey(),
         code: "",
-        description: "",
+        description,
         teeth: "",
         material: "",
         careBasket: "",
@@ -154,6 +154,7 @@ export function QuoteEditor({
         amc: "",
       },
     ]);
+    setQuery("");
   };
 
   const patch = (key: string, changes: Partial<DraftLine>) =>
@@ -261,6 +262,32 @@ export function QuoteEditor({
                 className={inputClass}
                 aria-label="Rechercher un acte"
               />
+              {/* Une recherche sans résultat ne doit jamais être un cul-de-sac :
+                  le praticien a un patient en face de lui, il ne va pas
+                  abandonner son devis parce qu'un code manque au référentiel.
+                  On lui propose la ligne libre, pré-remplie avec ce qu'il a tapé. */}
+              {query.trim() !== "" && suggestions.length === 0 ? (
+                <div className="absolute z-20 mt-1 w-full rounded-xl border border-line bg-surface p-4 shadow-card">
+                  <p className="text-sm text-body">
+                    Aucun acte trouvé pour «&nbsp;{query.trim()}&nbsp;».
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed text-muted">
+                    {context.nomenclature.length === 0
+                      ? "Le référentiel est vide sur cet environnement — il reste à charger."
+                      : "Le référentiel ne couvre pas encore tous les actes. Saisissez la ligne à la main : elle vaut la même chose sur le devis."}
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="mt-3"
+                    onClick={() => addBlank(query.trim())}
+                  >
+                    Ajouter «&nbsp;{query.trim()}&nbsp;» en ligne libre
+                  </Button>
+                </div>
+              ) : null}
+
               {suggestions.length > 0 ? (
                 <ul className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-xl border border-line bg-surface p-1 shadow-card">
                   {suggestions.map((entry) => (
@@ -319,7 +346,13 @@ export function QuoteEditor({
               ))}
             </div>
 
-            <Button type="button" variant="outline" size="sm" onClick={addBlank} className="mt-4">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => addBlank()}
+              className="mt-4"
+            >
               Ajouter une ligne libre
             </Button>
           </div>
@@ -566,7 +599,7 @@ function QuotePreview({
             style={{ background: context.primaryColor }}
           />
 
-          <div className="mt-3 min-h-[56px]">
+          <div className="mt-3 min-h-14">
             {context.letterheadMode === "image" && context.hasLetterheadImage ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img

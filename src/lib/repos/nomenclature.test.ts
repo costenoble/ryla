@@ -77,6 +77,26 @@ describe("recherche dans le référentiel", () => {
     expect(matchNomenclature(catalogue, "blepharoplastie")).toHaveLength(0);
   });
 
+  // Cas réel remonté à l'usage : un praticien tape « couronne céramic » et
+  // n'obtient rien, alors que l'acte est au catalogue. Une recherche qui ne
+  // remonte rien n'envoie pas le praticien vers le bon acte, elle l'envoie
+  // saisir le code de mémoire — donc à côté.
+  it("tolère une troncature ou une faute sur la fin du mot", () => {
+    expect(matchNomenclature(catalogue, "couronne céramic").map((e) => e.code)).toContain(
+      "HBLD033",
+    );
+    expect(matchNomenclature(catalogue, "couronn").length).toBeGreaterThan(0);
+    expect(matchNomenclature(catalogue, "detartrage")[0]?.code).toBe("HBJD001");
+  });
+
+  it("ne relâche pas la tolérance au point de tout ramener", () => {
+    // « cera » est court : il doit rester une inclusion stricte, sinon la
+    // moindre saisie ramènerait la moitié du catalogue.
+    expect(matchNomenclature(catalogue, "xyzab")).toHaveLength(0);
+    // Deux mots dont un seul correspond : toujours rien.
+    expect(matchNomenclature(catalogue, "couronne implant")).toHaveLength(0);
+  });
+
   it("renvoie le catalogue entier sur une recherche vide", () => {
     expect(matchNomenclature(catalogue, "  ")).toHaveLength(catalogue.length);
   });

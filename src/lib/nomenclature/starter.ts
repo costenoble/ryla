@@ -35,10 +35,20 @@ export type NomenclatureSeed = {
   reimbursable: boolean;
   reimbursementRate?: number;
   ngapKey?: string;
+  /** Coefficient NGAP. Le montant vaut coefficient × valeur de la lettre-clé. */
+  ngapCoefficient?: number;
   notes?: string;
+  /**
+   * Base de remboursement, en centimes, quand elle nous a été communiquée par
+   * le cabinet. Reste marquée `needsReview` : elle vient d'un praticien, pas
+   * de la base conventionnelle, et un avenant peut l'avoir changée.
+   */
+  baseReimbursementCents?: number;
 };
 
-const SOURCE = "Jeu de départ Ryla — codes et libellés uniquement, tarifs à importer";
+const SOURCE =
+  "Ryla — CCAM : codes et libellés à confronter à la base officielle ; " +
+  "NGAP : relevé sur la version en vigueur du 21/06/2026 (ameli.fr)";
 
 // ---------------------------------------------------------------------------
 // Dentaire — prothèse
@@ -47,32 +57,38 @@ const SOURCE = "Jeu de départ Ryla — codes et libellés uniquement, tarifs à
 const protheseDentaire: NomenclatureSeed[] = [
   {
     system: "CCAM",
-    code: "HBLD038",
+    code: "HBLD036",
     label: "Pose d'une couronne dentaire dentoportée céramométallique",
-    shortLabel: "Couronne céramométallique",
+    shortLabel: "Couronne céramo-métallique",
     specialty: "dentaire",
     category: "prothese",
     reimbursable: true,
+    baseReimbursementCents: 120_00,
     notes:
-      "Panier selon la dent : 100 % santé sur incisives, canines et prémolaires ; tarifs maîtrisés au-delà.",
+      "Panier selon la dent : 100 % santé sur incisives, canines et prémolaires ; " +
+      "tarifs maîtrisés au-delà. Honoraire limite de facturation à vérifier dans la convention.",
   },
   {
     system: "CCAM",
-    code: "HBLD036",
+    code: "HBLD403",
+    label: "Pose d'une couronne dentaire dentoportée céramique monolithique (tout-céramique)",
+    shortLabel: "Couronne tout-céramique / zircone",
+    specialty: "dentaire",
+    category: "prothese",
+    reimbursable: true,
+    baseReimbursementCents: 120_00,
+    notes:
+      "Plafond de facturation applicable en panier 100 % santé selon la dent et le matériau.",
+  },
+  {
+    system: "CCAM",
+    code: "HBLD038",
     label: "Pose d'une couronne dentaire dentoportée métallique",
     shortLabel: "Couronne métallique",
     specialty: "dentaire",
     category: "prothese",
     reimbursable: true,
-  },
-  {
-    system: "CCAM",
-    code: "HBLD033",
-    label: "Pose d'une couronne dentaire dentoportée céramique monolithique",
-    shortLabel: "Couronne zircone / céramique",
-    specialty: "dentaire",
-    category: "prothese",
-    reimbursable: true,
+    baseReimbursementCents: 120_00,
   },
   {
     system: "CCAM",
@@ -251,48 +267,161 @@ const soinsDentaires: NomenclatureSeed[] = [
 // Dentaire — NGAP encore en vigueur
 // ---------------------------------------------------------------------------
 
+/**
+ * Orthopédie dento-faciale — NGAP, article 5 de la deuxième partie.
+ *
+ * Relevé sur la version en vigueur du 21/06/2026 publiée par l'Assurance
+ * Maladie. Ce sont les seuls actes dentaires encore à la NGAP : les soins
+ * conservateurs et prothétiques en sont sortis en 2013 (décision UNCAM du
+ * 15/10/13, chapitre « Dents, gencives » abrogé) et relèvent désormais de la
+ * CCAM. Les lettres-clés SC et SPR qu'on voit encore circuler n'existent plus.
+ *
+ * Le coefficient est réel et fait foi ; la valeur en euros de la lettre-clé,
+ * elle, est fixée par la convention et non par la NGAP — d'où l'absence de
+ * base de remboursement ici. Le montant se calcule coefficient × valeur de la
+ * lettre-clé.
+ *
+ * Règle transversale : la prise en charge est limitée aux traitements commencés
+ * avant le seizième anniversaire.
+ */
 const ngapDentaire: NomenclatureSeed[] = [
   {
     system: "NGAP",
-    code: "SC",
-    label: "Soins conservateurs (lettre-clé SC, tarifée au coefficient)",
-    shortLabel: "SC — soins conservateurs",
-    specialty: "dentaire",
-    category: "conservateur",
-    reimbursable: true,
-    ngapKey: "SC",
-  },
-  {
-    system: "NGAP",
-    code: "SPR",
-    label: "Soins prothétiques (lettre-clé SPR, tarifée au coefficient)",
-    shortLabel: "SPR — prothèse",
-    specialty: "dentaire",
-    category: "prothese",
-    reimbursable: true,
-    ngapKey: "SPR",
-  },
-  {
-    system: "NGAP",
-    code: "TO",
-    label: "Traitement d'orthopédie dento-faciale (lettre-clé TO)",
-    shortLabel: "TO — orthodontie",
+    code: "TO-15",
+    label:
+      "Examens avec prise d'empreinte, diagnostic et durée probable du traitement d'ODF",
+    shortLabel: "ODF — bilan initial (TO 15)",
     specialty: "dentaire",
     category: "orthodontie",
     reimbursable: true,
     ngapKey: "TO",
+    ngapCoefficient: 15,
     notes:
-      "Prise en charge sous condition d'âge et d'entente préalable. Semestre de traitement actif.",
+      "Les examens spéciaux concourant au diagnostic (radiographie dentaire, téléradiographie de la tête) sont remboursés en sus.",
   },
   {
     system: "NGAP",
-    code: "ORT",
-    label: "Séance de surveillance d'orthopédie dento-faciale (lettre-clé ORT)",
-    shortLabel: "ORT — surveillance",
+    code: "TO-5-CEPH",
+    label: "Analyse céphalométrique, en supplément du bilan d'ODF",
+    shortLabel: "ODF — analyse céphalométrique (TO 5)",
     specialty: "dentaire",
     category: "orthodontie",
     reimbursable: true,
-    ngapKey: "ORT",
+    ngapKey: "TO",
+    ngapCoefficient: 5,
+  },
+  {
+    system: "NGAP",
+    code: "TO-90",
+    label: "Traitement des dysmorphoses par période de six mois",
+    shortLabel: "ODF — semestre de traitement (TO 90)",
+    specialty: "dentaire",
+    category: "orthodontie",
+    reimbursable: true,
+    ngapKey: "TO",
+    ngapCoefficient: 90,
+    notes:
+      "Accord préalable obligatoire, valable un an et à renouveler. Plafond global de 540. En denture lactéale ou mixte, phase limitée à trois semestres.",
+  },
+  {
+    system: "NGAP",
+    code: "TO-5-SURV",
+    label: "Séance de surveillance en cas d'interruption provisoire du traitement",
+    shortLabel: "ODF — séance de surveillance (TO 5)",
+    specialty: "dentaire",
+    category: "orthodontie",
+    reimbursable: true,
+    ngapKey: "TO",
+    ngapCoefficient: 5,
+    notes: "Accord préalable. Deux séances par semestre au maximum.",
+  },
+  {
+    system: "NGAP",
+    code: "TO-75",
+    label: "Contention après traitement orthodontique — première année",
+    shortLabel: "ODF — contention 1re année (TO 75)",
+    specialty: "dentaire",
+    category: "orthodontie",
+    reimbursable: true,
+    ngapKey: "TO",
+    ngapCoefficient: 75,
+    notes:
+      "Accord préalable, accordé seulement si le traitement a donné des résultats positifs.",
+  },
+  {
+    system: "NGAP",
+    code: "TO-50",
+    label: "Contention après traitement orthodontique — deuxième année",
+    shortLabel: "ODF — contention 2e année (TO 50)",
+    specialty: "dentaire",
+    category: "orthodontie",
+    reimbursable: true,
+    ngapKey: "TO",
+    ngapCoefficient: 50,
+    notes: "Accord préalable.",
+  },
+  {
+    system: "NGAP",
+    code: "TO-180",
+    label:
+      "Disjonction intermaxillaire rapide pour dysmorphose maxillaire, insuffisance respiratoire confirmée",
+    shortLabel: "ODF — disjonction intermaxillaire (TO 180)",
+    specialty: "dentaire",
+    category: "orthodontie",
+    reimbursable: true,
+    ngapKey: "TO",
+    ngapCoefficient: 180,
+    notes: "Accord préalable.",
+  },
+  {
+    system: "NGAP",
+    code: "TO-200",
+    label:
+      "ODF des malformations consécutives au bec-de-lièvre total ou à la division palatine — forfait annuel",
+    shortLabel: "ODF — fente labio-palatine, forfait annuel (TO 200)",
+    specialty: "dentaire",
+    category: "orthodontie",
+    reimbursable: true,
+    ngapKey: "TO",
+    ngapCoefficient: 200,
+    notes:
+      "Accord préalable. Facturé à la fin de l'année de soins. Variante semestrielle au coefficient 100.",
+  },
+  {
+    system: "NGAP",
+    code: "TO-60",
+    label: "ODF des fentes labio-palatines — facturation en période d'attente",
+    shortLabel: "ODF — période d'attente (TO 60)",
+    specialty: "dentaire",
+    category: "orthodontie",
+    reimbursable: true,
+    ngapKey: "TO",
+    ngapCoefficient: 60,
+    notes: "Accord préalable.",
+  },
+  {
+    system: "NGAP",
+    code: "TO-90-CHIR",
+    label:
+      "ODF au-delà du seizième anniversaire, préalable à une intervention chirurgicale sur les maxillaires",
+    shortLabel: "ODF — préparation chirurgicale (TO 90)",
+    specialty: "dentaire",
+    category: "orthodontie",
+    reimbursable: true,
+    ngapKey: "TO",
+    ngapCoefficient: 90,
+    notes:
+      "Accord préalable, pour une période de six mois non renouvelable. La demande doit être accompagnée d'une lettre du chirurgien motivant le traitement.",
+  },
+  {
+    system: "NGAP",
+    code: "CXD",
+    label: "Consultation bucco-dentaire complexe",
+    shortLabel: "CXD — consultation complexe",
+    specialty: "dentaire",
+    category: "consultation",
+    reimbursable: true,
+    ngapKey: "CXD",
   },
 ];
 

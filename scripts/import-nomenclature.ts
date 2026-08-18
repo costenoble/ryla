@@ -79,15 +79,17 @@ function fromSeed(entry: NomenclatureSeed): Row {
     shortLabel: entry.shortLabel ?? null,
     specialty: entry.specialty,
     category: entry.category,
-    // Le jeu de départ ne porte volontairement aucun tarif : un chiffre
-    // approximatif sur un devis opposable coûte plus cher qu'un champ vide.
-    baseReimbursementCents: null,
+    // Le jeu de départ ne porte de tarif que là où un praticien nous en a
+    // communiqué un — et il reste marqué à relire. Ailleurs, champ vide plutôt
+    // qu'un chiffre approximatif : sur un devis opposable, le second coûte plus
+    // cher que le premier.
+    baseReimbursementCents: entry.baseReimbursementCents ?? null,
     reimbursementRate: entry.reimbursementRate ?? 0.7,
     ceilingCents: null,
     careBasket: null,
     reimbursable: entry.reimbursable,
     ngapKey: entry.ngapKey ?? null,
-    ngapCoefficient: null,
+    ngapCoefficient: entry.ngapCoefficient ?? null,
     notes: entry.notes ?? null,
     source: NOMENCLATURE_SEED_SOURCE,
     effectiveFrom: null,
