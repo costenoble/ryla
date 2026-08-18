@@ -222,10 +222,22 @@ export function EmptyState({
 // Champs de formulaire
 // ---------------------------------------------------------------------------
 
-export const inputClass =
-  "w-full rounded-md border border-line-strong bg-surface px-3.5 py-2.5 text-[15px] " +
+const INPUT_BASE =
+  "rounded-md border border-line-strong bg-surface px-3.5 py-2.5 text-[15px] " +
   "text-body shadow-[inset_0_1px_2px_rgb(15_23_42/0.04)] transition " +
   "placeholder:text-faint focus:border-brand-400 focus:ring-4 focus:ring-brand-100 focus:outline-none";
+
+export const inputClass = `w-full ${INPUT_BASE}`;
+
+/**
+ * Variante pour un contrôle inséré dans une phrase (« afficher seulement si
+ * [X] vaut [Oui] »), où la pleine largeur casserait la lecture.
+ *
+ * C'est une constante distincte et non `cx(inputClass, "w-auto")` : Tailwind ne
+ * résout pas les conflits selon l'ordre de la chaîne, c'est l'ordre dans la
+ * feuille générée qui tranche — et `w-full` y gagne.
+ */
+export const inputInlineClass = `w-auto ${INPUT_BASE}`;
 
 export function Field({
   label,

@@ -1,7 +1,15 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { IconAlert, IconSparkle, IconTemplate } from "@/components/icons";
 import { FadeUp, HoverLift, Stagger, StaggerItem } from "@/components/motion";
-import { Badge, Card, EmptyState, PageHeader, type BadgeTone } from "@/components/ui";
+import {
+  Badge,
+  ButtonLink,
+  Card,
+  EmptyState,
+  PageHeader,
+  type BadgeTone,
+} from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { withTenant } from "@/lib/db";
 import { formatDate } from "@/lib/format";
@@ -45,6 +53,9 @@ export default async function ModelesPage() {
           eyebrow="Bibliothèque"
           title="Modèles"
           description="Chaque publication crée une version. Les dossiers déjà envoyés restent rattachés à la version qu'ils ont affichée."
+          action={
+            <ButtonLink href="/modeles/nouveau">Nouveau modèle</ButtonLink>
+          }
         />
       </FadeUp>
 
@@ -82,7 +93,8 @@ export default async function ModelesPage() {
           <EmptyState
             icon={<IconTemplate className="size-5" />}
             title="Aucun modèle"
-            description="Importez vos documents existants ou partez de la bibliothèque Ryla."
+            description="Composez votre premier formulaire, ou partez d'un modèle de la bibliothèque Ryla."
+            action={<ButtonLink href="/modeles/nouveau">Nouveau modèle</ButtonLink>}
           />
         </FadeUp>
       ) : (
@@ -92,37 +104,44 @@ export default async function ModelesPage() {
             return (
               <StaggerItem key={template.id}>
                 <HoverLift>
-                  <Card className="flex h-full flex-col p-5">
-                    <div className="flex items-start justify-between gap-3">
-                      <h2 className="font-semibold text-body">{template.title}</h2>
-                      <Badge tone={kind?.tone ?? "neutral"}>
-                        {kind?.label ?? template.kind}
-                      </Badge>
-                    </div>
+                  <Link
+                    href={`/modeles/${template.id}`}
+                    className="block h-full rounded-2xl focus-visible:ring-4 focus-visible:ring-brand-100 focus-visible:outline-none"
+                  >
+                    <Card className="flex h-full flex-col p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <h2 className="font-semibold text-body">{template.title}</h2>
+                        <Badge tone={kind?.tone ?? "neutral"}>
+                          {kind?.label ?? template.kind}
+                        </Badge>
+                      </div>
 
-                    {template.description ? (
-                      <p className="mt-2.5 line-clamp-3 text-sm leading-relaxed text-muted">
-                        {template.description}
-                      </p>
-                    ) : null}
-
-                    <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 pt-4 text-xs text-faint">
-                      <span className="tabular">Version {template.currentVersion ?? "—"}</span>
-                      <span aria-hidden="true">·</span>
-                      <span className="tabular">
-                        Modifié le {formatDate(template.updatedAt)}
-                      </span>
-                      {template.libraryRef ? (
-                        <span
-                          className="ml-auto inline-flex items-center gap-1 text-brand-600"
-                          title={template.libraryRef}
-                        >
-                          <IconSparkle className="size-3.5" />
-                          Bibliothèque Ryla
-                        </span>
+                      {template.description ? (
+                        <p className="mt-2.5 line-clamp-3 text-sm leading-relaxed text-muted">
+                          {template.description}
+                        </p>
                       ) : null}
-                    </div>
-                  </Card>
+
+                      <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 pt-4 text-xs text-faint">
+                        <span className="tabular">
+                          Version {template.currentVersion ?? "—"}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span className="tabular">
+                          Modifié le {formatDate(template.updatedAt)}
+                        </span>
+                        {template.libraryRef ? (
+                          <span
+                            className="ml-auto inline-flex items-center gap-1 text-brand-600"
+                            title={template.libraryRef}
+                          >
+                            <IconSparkle className="size-3.5" />
+                            Bibliothèque Ryla
+                          </span>
+                        ) : null}
+                      </div>
+                    </Card>
+                  </Link>
                 </HoverLift>
               </StaggerItem>
             );

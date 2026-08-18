@@ -139,6 +139,57 @@ export async function getTemplateByKey(
   return row ? getTemplate(tx, row.id) : null;
 }
 
+export type TemplateVersionSummary = {
+  id: string;
+  version: number;
+  contentHash: string;
+  publishedAt: Date | null;
+  authorName: string | null;
+  /** Dossiers envoyés sur cette version : ce qui interdit d'y toucher. */
+  submissionCount: number;
+};
+
+/**
+ * Historique des versions d'un modèle.
+ *
+ * Le nombre de dossiers rattachés est la donnée utile : c'est lui qui dit si
+ * une version est encore de l'archive vivante ou un simple brouillon dépassé.
+ */
+export async function listTemplateVersions(
+  tx: Tx,
+  templateId: string,
+): Promise<TemplateVersionSummary[]> {
+  const rows = await tx<
+    {
+      id: string;
+      version: number;
+      content_hash: string;
+      published_at: Date | null;
+      author_name: string | null;
+      submission_count: string;
+    }[]
+  >`
+    select v.id, v.version, v.content_hash, v.published_at,
+           u.full_name as author_name,
+           count(s.id) as submission_count
+    from form_versions v
+    left join users u on u.id = v.created_by
+    left join submissions s on s.form_version_id = v.id
+    where v.template_id = ${templateId}
+    group by v.id, u.full_name
+    order by v.version desc
+  `;
+
+  return rows.map((row) => ({
+    id: row.id,
+    version: row.version,
+    contentHash: row.content_hash,
+    publishedAt: row.published_at,
+    authorName: row.author_name,
+    submissionCount: Number(row.submission_count),
+  }));
+}
+
 // ---------------------------------------------------------------------------
 // Écriture
 // ---------------------------------------------------------------------------
