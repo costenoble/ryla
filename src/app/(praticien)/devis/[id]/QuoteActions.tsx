@@ -7,6 +7,7 @@ import { Button } from "@/components/ui";
 import {
   acceptQuoteAction,
   deliverQuoteAction,
+  sendQuoteForSignature,
   type QuoteActionState,
 } from "@/lib/actions/quotes";
 
@@ -30,31 +31,74 @@ export function QuoteActions({
   reflectionElapsed: boolean;
   reflectionRequired: boolean;
 }) {
+  const [sendState, send, sending] = useActionState(sendQuoteForSignature, initial);
   const [deliverState, deliver, delivering] = useActionState(deliverQuoteAction, initial);
   const [acceptState, accept, accepting] = useActionState(acceptQuoteAction, initial);
   const router = useRouter();
 
   useEffect(() => {
-    if (deliverState.status === "delivered" || acceptState.status === "accepted") {
+    if (
+      deliverState.status === "delivered" ||
+      acceptState.status === "accepted" ||
+      sendState.status === "sent"
+    ) {
       router.refresh();
     }
-  }, [deliverState, acceptState, router]);
+  }, [deliverState, acceptState, sendState, router]);
 
   const error =
     deliverState.status === "error"
       ? deliverState.message
       : acceptState.status === "error"
         ? acceptState.message
-        : null;
+        : sendState.status === "error"
+          ? sendState.message
+          : null;
 
   return (
     <div className="space-y-3">
+      {/* L'envoi au patient est l'action principale : elle produit le PDF,
+          l'attache à un dossier de signature et lance le délai de réflexion.
+          La remise sans envoi reste possible pour un devis remis en main
+          propre. */}
+      {status === "draft" || status === "sent" ? (
+        <form action={send}>
+          <input type="hidden" name="quoteId" value={quoteId} />
+          <Button type="submit" disabled={sending}>
+            {sending ? "Envoi…" : "Envoyer au patient pour signature"}
+          </Button>
+        </form>
+      ) : null}
+
+      {sendState.status === "sent" ? (
+        <div className="rounded-xl bg-positive-soft px-4 py-3">
+          <p className="flex items-center gap-2 text-sm font-semibold text-positive">
+            <IconCheck className="size-4" />
+            {sendState.emailedTo
+              ? `Devis envoyé à ${sendState.emailedTo}`
+              : "Devis prêt — lien à transmettre"}
+          </p>
+          {sendState.deliveryError ? (
+            <p className="mt-1 text-xs font-semibold text-caution">
+              L'email n'est pas parti : transmettez le lien ci-dessous vous-même.
+            </p>
+          ) : null}
+          <input
+            readOnly
+            value={sendState.url}
+            onFocus={(event) => event.currentTarget.select()}
+            aria-label="Lien de signature"
+            className="mt-2 w-full rounded-md border border-line-strong bg-surface px-3 py-2 font-mono text-xs"
+          />
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-3">
         {status === "draft" ? (
           <form action={deliver}>
             <input type="hidden" name="quoteId" value={quoteId} />
-            <Button type="submit" disabled={delivering}>
-              {delivering ? "Remise…" : "Remettre au patient"}
+            <Button type="submit" variant="outline" disabled={delivering}>
+              {delivering ? "Remise…" : "Remis en main propre"}
             </Button>
           </form>
         ) : null}

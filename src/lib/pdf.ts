@@ -553,3 +553,216 @@ export async function renderSubmissionPdf(
   const bytes = await doc.save();
   return { bytes, sha256: sha256Hex(Buffer.from(bytes)) };
 }
+
+// ---------------------------------------------------------------------------
+// Devis
+// ---------------------------------------------------------------------------
+
+export type QuotePdfParams = {
+  reference: string;
+  kind: "dentaire_cerfa_s3404" | "esthetique";
+  issuedOn: Date;
+  validityDays: number;
+  reflectionPeriodDays: number;
+  tenant: RenderParams["tenant"];
+  practitioner: { name: string; identifier?: string | null };
+  patient: { displayName: string; birthDate?: string | null };
+  lines: {
+    code: string | null;
+    description: string;
+    toothNumbers: string[] | null;
+    material: string | null;
+    careBasketLabel: string | null;
+    quantity: number;
+    grossCents: number;
+    amoCents: number;
+    amcCents: number;
+    patientCents: number;
+  }[];
+  totals: {
+    totalAmountCents: number;
+    totalAmoCents: number;
+    totalAmcCents: number;
+    remainingChargeCents: number;
+  };
+  note?: string | null;
+};
+
+function euros(cents: number): string {
+  return `${(cents / 100).toFixed(2).replace(".", ",")} EUR`;
+}
+
+/**
+ * Devis prêt à être signé.
+ *
+ * Rendu ici plutôt que dans un module à part pour réutiliser la mise en page du
+ * reste du projet — mêmes marges, même en-tête composé dans les réglages, même
+ * traitement des caractères hors WinAnsi. Un devis qui ne ressemble pas aux
+ * autres documents du cabinet se remarque, et pas en bien.
+ *
+ * Le PDF produit est ensuite annexé à un dossier de signature ordinaire : c'est
+ * le même chemin que pour un devis importé du logiciel métier, et il hérite
+ * donc du même faisceau de preuves.
+ */
+export async function renderQuotePdf(
+  params: QuotePdfParams,
+): Promise<{ bytes: Uint8Array; sha256: string }> {
+  const doc = await PDFDocument.create();
+  doc.setTitle(sanitize(`Devis ${params.reference}`));
+  doc.setProducer("Ryla");
+  doc.setCreator("Ryla");
+  doc.setCreationDate(new Date());
+
+  const layout: Layout = {
+    doc,
+    page: doc.addPage([A4.width, A4.height]),
+    y: A4.height - MARGIN,
+    regular: await doc.embedFont(StandardFonts.Helvetica),
+    bold: await doc.embedFont(StandardFonts.HelveticaBold),
+    italic: await doc.embedFont(StandardFonts.HelveticaOblique),
+    brand: hexToRgb(params.tenant.brandColor ?? undefined),
+  };
+
+  if (params.tenant.letterhead?.length) {
+    for (const block of params.tenant.letterhead) writeAligned(layout, block);
+    layout.y -= 4;
+  } else {
+    write(layout, params.tenant.name, { font: layout.bold, size: 13, color: layout.brand });
+    if (params.tenant.address) {
+      write(layout, params.tenant.address, { size: 8, color: rgb(0.42, 0.45, 0.5) });
+    }
+  }
+
+  rule(layout, layout.brand);
+
+  const title =
+    params.kind === "esthetique"
+      ? "DEVIS — CHIRURGIE ESTHÉTIQUE"
+      : "DEVIS CONVENTIONNEL DENTAIRE (CERFA S3404)";
+  write(layout, title, { font: layout.bold, size: 13 });
+  write(
+    layout,
+    `N° ${params.reference} — établi le ${params.issuedOn.toLocaleDateString("fr-FR")} ` +
+      `— valable ${params.validityDays} jours`,
+    { size: 9, color: rgb(0.35, 0.38, 0.44), gap: 6 },
+  );
+
+  heading(layout, "Praticien et patient");
+  write(
+    layout,
+    `Praticien : ${params.practitioner.name}` +
+      (params.practitioner.identifier ? ` — RPPS/ADELI ${params.practitioner.identifier}` : ""),
+    { size: 9 },
+  );
+  if (params.tenant.address) {
+    write(layout, `Cabinet : ${params.tenant.address}`, { size: 9 });
+  }
+  write(
+    layout,
+    `Patient : ${params.patient.displayName}` +
+      (params.patient.birthDate ? ` — né(e) le ${params.patient.birthDate}` : ""),
+    { size: 9, gap: 4 },
+  );
+
+  heading(layout, "Actes proposés");
+  for (const line of params.lines) {
+    ensureSpace(layout, 40);
+    write(layout, `${line.code ? `${line.code} — ` : ""}${line.description}`, {
+      font: layout.bold,
+      size: 9,
+    });
+
+    const details = [
+      line.toothNumbers?.length ? `dents ${line.toothNumbers.join(", ")}` : null,
+      line.material,
+      line.quantity > 1 ? `quantité ${line.quantity}` : null,
+      line.careBasketLabel,
+    ].filter(Boolean);
+    if (details.length > 0) {
+      write(layout, details.join(" · "), {
+        size: 8,
+        indent: 10,
+        color: rgb(0.42, 0.45, 0.5),
+      });
+    }
+
+    write(
+      layout,
+      `Honoraires ${euros(line.grossCents)} — assurance maladie ${euros(line.amoCents)} ` +
+        `— complémentaire ${euros(line.amcCents)} — reste à charge ${euros(line.patientCents)}`,
+      { size: 8.5, indent: 10, gap: 4 },
+    );
+  }
+
+  heading(layout, "Récapitulatif");
+  write(layout, `Total des honoraires : ${euros(params.totals.totalAmountCents)}`, { size: 9.5 });
+  write(layout, `Part assurance maladie : ${euros(params.totals.totalAmoCents)}`, { size: 9.5 });
+  write(layout, `Part complémentaire : ${euros(params.totals.totalAmcCents)}`, { size: 9.5 });
+  write(layout, `Reste à votre charge : ${euros(params.totals.remainingChargeCents)}`, {
+    font: layout.bold,
+    size: 11,
+    gap: 4,
+  });
+
+  if (params.note?.trim()) {
+    heading(layout, "Note du cabinet");
+    write(layout, params.note, { size: 9, gap: 4 });
+  }
+
+  // Mentions légales du régime concerné. Elles ne sont pas décoratives : leur
+  // absence est précisément ce qui fait requalifier un devis.
+  heading(layout, "Mentions légales");
+  if (params.kind === "esthetique") {
+    write(
+      layout,
+      `Un délai de réflexion de ${params.reflectionPeriodDays} jours court à compter de la ` +
+        "remise du présent devis (art. D6322-30 du code de la santé publique). Aucune " +
+        "intervention ne peut être programmée ni aucun acompte exigé avant son terme. Ce " +
+        "délai est d'ordre public : il ne peut pas faire l'objet d'une renonciation.",
+      { size: 8, color: rgb(0.35, 0.38, 0.44), gap: 3 },
+    );
+    write(
+      layout,
+      "Les actes à visée esthétique sans finalité thérapeutique ne sont pas pris en charge " +
+        "par l'assurance maladie et sont soumis à la TVA au taux de 20 %.",
+      { size: 8, color: rgb(0.35, 0.38, 0.44) },
+    );
+  } else {
+    write(
+      layout,
+      "Devis conventionnel établi conformément à l'arrêté du 31 octobre 2020. Les montants " +
+        "de remboursement sont donnés à titre indicatif et dépendent de vos droits et de " +
+        "votre contrat de complémentaire santé.",
+      { size: 8, color: rgb(0.35, 0.38, 0.44), gap: 3 },
+    );
+    write(
+      layout,
+      "Une alternative thérapeutique relevant du panier 100 % santé, sans reste à charge, " +
+        "vous est proposée lorsqu'elle existe pour les actes concernés.",
+      { size: 8, color: rgb(0.35, 0.38, 0.44) },
+    );
+  }
+
+  if (params.tenant.legalNotice) {
+    write(layout, params.tenant.legalNotice, {
+      size: 7.5,
+      color: rgb(0.45, 0.48, 0.53),
+      gap: 3,
+    });
+  }
+
+  const pages = doc.getPages();
+  pages.forEach((page, index) => {
+    const label = `Devis ${params.reference} — ${index + 1} / ${pages.length}`;
+    page.drawText(sanitize(label), {
+      x: MARGIN,
+      y: 28,
+      size: 7,
+      font: layout.regular,
+      color: rgb(0.55, 0.58, 0.62),
+    });
+  });
+
+  const bytes = await doc.save();
+  return { bytes, sha256: sha256Hex(Buffer.from(bytes)) };
+}

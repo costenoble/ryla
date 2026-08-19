@@ -3,14 +3,10 @@
 import { recordAudit } from "@/lib/audit";
 import { requestContext, requireSession } from "@/lib/auth";
 import { sha256Hex } from "@/lib/crypto";
-import { withTenant, type Tx } from "@/lib/db";
-import { parseFormDefinition } from "@/lib/form-schema";
-import { IMPORTED_QUOTE_KEY, importedQuoteDefinition } from "@/lib/imported-quote";
+import { withTenant } from "@/lib/db";
 import { issueAccessToken } from "@/lib/magic-link";
 import { patientInvitation, trySend } from "@/lib/notifications";
-import { createTemplate, getTemplateByKey } from "@/lib/repos/forms";
-import { createSubmission, markSent } from "@/lib/repos/submissions";
-import { buildStorageKey, documentStore } from "@/lib/storage";
+import { createQuoteSignature } from "@/lib/quote-signature";
 
 /**
  * Import d'un devis produit par le logiciel métier du cabinet.
@@ -46,38 +42,6 @@ export type ImportQuoteState =
 
 /** Au-delà, ce n'est plus un devis mais un dossier d'imagerie. */
 const MAX_BYTES = 15_000_000;
-
-/**
- * Le modèle de signature est créé à la volée, une fois par cabinet et par
- * régime, plutôt que livré par migration : un cabinet qui n'importe jamais de
- * devis n'a pas à voir ce modèle traîner dans sa bibliothèque.
- */
-async function ensureTemplate(
-  tx: Tx,
-  tenantId: string,
-  kind: "dentaire" | "esthetique",
-  createdBy: string,
-): Promise<{ templateId: string; versionId: string }> {
-  const key = `${IMPORTED_QUOTE_KEY}-${kind}`;
-  const existing = await getTemplateByKey(tx, key);
-  if (existing?.currentVersionId) {
-    return { templateId: existing.id, versionId: existing.currentVersionId };
-  }
-
-  const definition = parseFormDefinition(importedQuoteDefinition(kind));
-  const created = await createTemplate(tx, {
-    tenantId,
-    key,
-    title: definition.title,
-    description: "Signature d'un devis établi hors de Ryla.",
-    kind: "devis",
-    specialty: kind === "esthetique" ? "esthetique" : "dentaire",
-    definition,
-    createdBy,
-  });
-
-  return { templateId: created.templateId, versionId: created.versionId };
-}
 
 export async function importQuoteForSignature(
   _previous: ImportQuoteState,
@@ -127,44 +91,16 @@ export async function importQuoteForSignature(
         `;
         if (!patient) throw new Error("Patient introuvable.");
 
-        const template = await ensureTemplate(tx, session.tenant.id, kind, session.user.id);
-
-        const submissionId = await createSubmission(tx, {
+        const submissionId = await createQuoteSignature(tx, {
           tenantId: session.tenant.id,
-          templateId: template.templateId,
-          formVersionId: template.versionId,
+          userId: session.user.id,
           patientId,
-          createdBy: session.user.id,
-          assignedTo: session.user.id,
-        });
-
-        const storageKey = buildStorageKey({
-          tenantId: session.tenant.id,
-          submissionId,
-          kind: "devis-importe",
+          kind,
           filename,
+          bytes,
+          sha256,
+          origin: "imported",
         });
-        const stored = await documentStore(tx, session.tenant.id).put(storageKey, bytes);
-
-        const [document] = await tx<{ id: string }[]>`
-          insert into documents (
-            tenant_id, submission_id, kind, filename, storage_key, sha256,
-            byte_size, origin
-          ) values (
-            ${session.tenant.id}, ${submissionId}, 'devis', ${filename},
-            ${stored.key}, ${sha256}, ${stored.byteSize}, 'imported'
-          )
-          returning id
-        `;
-        if (!document) throw new Error("Enregistrement du devis impossible.");
-
-        await tx`
-          update submissions
-          set source_document_id = ${document.id}
-          where id = ${submissionId}
-        `;
-
-        await markSent(tx, submissionId);
 
         const token = await issueAccessToken(tx, {
           tenantId: session.tenant.id,
@@ -183,7 +119,7 @@ export async function importQuoteForSignature(
           userAgent: client.userAgent,
           // L'empreinte du fichier, jamais le jeton : le journal est
           // consultable depuis l'interface.
-          metadata: { filename, sha256, source, kind, byteSize: stored.byteSize },
+          metadata: { filename, sha256, source, kind, byteSize: bytes.byteLength },
         });
 
         return {

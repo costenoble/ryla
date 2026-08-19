@@ -3,12 +3,28 @@
 import { z } from "zod";
 import { recordAudit } from "@/lib/audit";
 import { requestContext, requireSession } from "@/lib/auth";
-import { CARE_BASKETS, checkCerfaCompleteness, type QuoteLineInput } from "@/lib/cerfa";
+import {
+  CARE_BASKETS,
+  CARE_BASKET_LABELS,
+  checkCerfaCompleteness,
+  type QuoteLineInput,
+} from "@/lib/cerfa";
 import { withTenant, type Tx } from "@/lib/db";
+import { issueAccessToken } from "@/lib/magic-link";
+import { patientInvitation, trySend } from "@/lib/notifications";
+import { renderQuotePdf } from "@/lib/pdf";
+import { createQuoteSignature } from "@/lib/quote-signature";
 import { REFLECTION_DAYS_ESTHETIQUE } from "@/lib/reflection";
 import { getPatient } from "@/lib/repos/patients";
-import { acceptQuote, createQuote, deliverQuote } from "@/lib/repos/quotes";
+import {
+  acceptQuote,
+  createQuote,
+  deliverQuote,
+  getQuote,
+  getQuoteLines,
+} from "@/lib/repos/quotes";
 import { getTenantSelf, formatAddress } from "@/lib/repos/tenants";
+import { letterheadBlocks } from "@/lib/letterhead";
 
 /**
  * Devis établis dans Ryla.
@@ -208,7 +224,171 @@ export type QuoteActionState =
   | { status: "idle" }
   | { status: "error"; message: string }
   | { status: "delivered"; reflectionEndsAt: string | null }
-  | { status: "accepted" };
+  | { status: "accepted" }
+  | {
+      status: "sent";
+      url: string;
+      emailedTo: string | null;
+      deliveryError: string | null;
+    };
+
+/**
+ * Envoi d'un devis Ryla au patient, pour signature.
+ *
+ * Même chemin qu'un devis importé du logiciel métier : le PDF est produit, puis
+ * annexé à un dossier de signature ordinaire. Il hérite donc de tout ce qui
+ * existe déjà — lien magique, mesure du temps de lecture, déclarations
+ * horodatées, chaîne d'audit — sans qu'aucune de ces mécaniques ait à savoir
+ * d'où vient la pièce.
+ *
+ * La remise est faite au passage : c'est bien cet instant, celui où le devis
+ * part chez le patient, qui doit faire courir le délai de réflexion.
+ */
+export async function sendQuoteForSignature(
+  _previous: QuoteActionState,
+  formData: FormData,
+): Promise<QuoteActionState> {
+  const session = await requireSession();
+  const client = await requestContext();
+  const quoteId = String(formData.get("quoteId") ?? "").trim();
+  if (!quoteId) return { status: "error", message: "Devis introuvable." };
+
+  try {
+    const result = await withTenant(
+      { tenantId: session.tenant.id, actorId: session.user.id },
+      async (tx) => {
+        const quote = await getQuote(tx, quoteId);
+        if (!quote) throw new Error("Devis introuvable.");
+        if (!quote.patientId) {
+          throw new Error("Rattachez un patient au devis avant de l'envoyer.");
+        }
+
+        const patient = await getPatient(tx, quote.patientId);
+        if (!patient) throw new Error("Patient introuvable.");
+
+        const tenant = await getTenantSelf(tx);
+        const lines = await getQuoteLines(tx, quoteId);
+        const payload = quote.payload as {
+          note?: string;
+          practitionerName?: string;
+          practitionerIdentifier?: string;
+        };
+
+        const { bytes, sha256 } = await renderQuotePdf({
+          reference: quote.reference,
+          kind: quote.kind,
+          issuedOn: quote.createdAt,
+          validityDays: quote.validityDays,
+          reflectionPeriodDays: quote.reflectionPeriodDays,
+          tenant: {
+            name: tenant.name,
+            legalNotice: tenant.legalNotice,
+            address: formatAddress(tenant.address),
+            brandColor: tenant.branding.primaryColor ?? null,
+            letterhead:
+              tenant.branding.letterheadMode === "text"
+                ? letterheadBlocks(tenant.branding)
+                : null,
+          },
+          practitioner: {
+            name: payload.practitionerName ?? session.user.fullName,
+            identifier: payload.practitionerIdentifier ?? session.user.rpps,
+          },
+          patient: {
+            displayName: `${patient.firstName} ${patient.lastName}`,
+            birthDate: patient.birthDate?.toLocaleDateString("fr-FR") ?? null,
+          },
+          lines: lines.map((line) => ({
+            code: line.ccam_code,
+            description: line.description,
+            toothNumbers: line.tooth_numbers,
+            material: line.material,
+            careBasketLabel: line.care_basket
+              ? CARE_BASKET_LABELS[line.care_basket]
+              : null,
+            quantity: line.quantity,
+            grossCents: Number(line.unit_price_cents) * line.quantity,
+            amoCents: Number(line.amo_cents),
+            amcCents: Number(line.amc_cents),
+            patientCents: Number(line.patient_cents),
+          })),
+          totals: {
+            totalAmountCents: quote.totalAmountCents,
+            totalAmoCents: quote.totalAmoCents,
+            totalAmcCents: quote.totalAmcCents,
+            remainingChargeCents: quote.remainingChargeCents,
+          },
+          note: payload.note ?? null,
+        });
+
+        const submissionId = await createQuoteSignature(tx, {
+          tenantId: session.tenant.id,
+          userId: session.user.id,
+          patientId: quote.patientId,
+          kind: quote.kind === "esthetique" ? "esthetique" : "dentaire",
+          filename: `devis-${quote.reference}.pdf`,
+          bytes,
+          sha256,
+          origin: "generated",
+        });
+
+        await tx`
+          update quotes set submission_id = ${submissionId} where id = ${quoteId}
+        `;
+
+        // La remise fait courir le délai : elle a lieu ici, à l'envoi réel.
+        if (quote.status === "draft") await deliverQuote(tx, quoteId);
+
+        const token = await issueAccessToken(tx, {
+          tenantId: session.tenant.id,
+          tenantSlug: session.tenant.slug,
+          submissionId,
+        });
+
+        await recordAudit(tx, session.tenant.id, {
+          actorType: "user",
+          actorId: session.user.id,
+          actorLabel: session.user.fullName,
+          action: "quote.sent_for_signature",
+          objectType: "quote",
+          objectId: quoteId,
+          ip: client.ip,
+          userAgent: client.userAgent,
+          metadata: { reference: quote.reference, documentSha256: sha256 },
+        });
+
+        return {
+          url: token.url,
+          expiresAt: token.expiresAt,
+          recipient: patient.email,
+        };
+      },
+    );
+
+    const delivery = result.recipient
+      ? await trySend(
+          patientInvitation({
+            to: result.recipient,
+            cabinetName: session.tenant.name,
+            url: result.url,
+            expiresAt: result.expiresAt,
+          }),
+        )
+      : { sent: false, error: null };
+
+    return {
+      status: "sent",
+      url: result.url,
+      emailedTo: delivery.sent ? result.recipient : null,
+      deliveryError: delivery.error,
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "L'envoi a échoué.",
+    };
+  }
+}
 
 /**
  * Remise du devis au patient — c'est cet instant qui fait courir le délai.
