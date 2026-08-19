@@ -3,6 +3,7 @@ import { recordAudit } from "@/lib/audit";
 import { currentSession, requestContext } from "@/lib/auth";
 import { sha256Hex } from "@/lib/crypto";
 import { withTenant } from "@/lib/db";
+import { can } from "@/lib/permissions";
 import { documentStore } from "@/lib/storage";
 
 /**
@@ -22,6 +23,11 @@ export async function GET(
   const session = await currentSession();
   if (!session) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  // Un PDF de consentement est une donnée de santé : le rôle décide, pas la
+  // seule présence d'une session.
+  if (!can(session.user.role, "health.read")) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
   const { id } = await context.params;

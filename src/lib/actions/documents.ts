@@ -1,7 +1,7 @@
 "use server";
 
 import { recordAudit } from "@/lib/audit";
-import { requestContext, requireSession } from "@/lib/auth";
+import { requestContext, requireCapability } from "@/lib/auth";
 import { withTenant } from "@/lib/db";
 import { issueAccessToken, revokeTokensForSubmission } from "@/lib/magic-link";
 import { patientReminder, trySend } from "@/lib/notifications";
@@ -31,7 +31,7 @@ export async function resendDocumentLink(
   _previous: ResendState,
   formData: FormData,
 ): Promise<ResendState> {
-  const session = await requireSession();
+  const session = await requireCapability("submissions.send");
   const client = await requestContext();
   const submissionId = String(formData.get("submissionId") ?? "").trim();
 

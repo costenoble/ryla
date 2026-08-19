@@ -3,7 +3,7 @@ import Link from "next/link";
 import { IconArrowLeft } from "@/components/icons";
 import { FadeUp } from "@/components/motion";
 import { PageHeader } from "@/components/ui";
-import { requireSession } from "@/lib/auth";
+import { requireCapability } from "@/lib/auth";
 import { withTenant } from "@/lib/db";
 import { library } from "@/lib/library";
 import { listTemplates } from "@/lib/repos/forms";
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Nouveau modèle" };
 
 export default async function NouveauModelePage() {
-  const session = await requireSession();
+  const session = await requireCapability("templates.write");
 
   const installed = await withTenant({ tenantId: session.tenant.id }, (tx) =>
     listTemplates(tx),

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { IconArrowLeft } from "@/components/icons";
 import { FadeUp } from "@/components/motion";
 import { PageHeader } from "@/components/ui";
-import { requireSession } from "@/lib/auth";
+import { requireCapability } from "@/lib/auth";
 import { withTenant } from "@/lib/db";
 import { listNomenclature } from "@/lib/repos/nomenclature";
 import { getTenantSelf } from "@/lib/repos/tenants";
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Référentiel d'actes" };
 
 export default async function ActesPage() {
-  const session = await requireSession();
+  const session = await requireCapability("nomenclature.write");
 
   const entries = await withTenant({ tenantId: session.tenant.id }, async (tx) => {
     const tenant = await getTenantSelf(tx);

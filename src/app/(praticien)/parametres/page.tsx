@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { FadeUp } from "@/components/motion";
 import { ButtonLink, PageHeader } from "@/components/ui";
-import { requireSession } from "@/lib/auth";
+import { requireCapability } from "@/lib/auth";
 import { withTenant } from "@/lib/db";
 import { getTenantSelf } from "@/lib/repos/tenants";
 import { SettingsForm } from "./SettingsForm";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Réglages" };
 
 export default async function ParametresPage() {
-  const session = await requireSession();
+  const session = await requireCapability("settings.write");
 
   const data = await withTenant({ tenantId: session.tenant.id }, async (tx) => {
     // La session ne porte pas la spécialité affichée : elle ne sert qu'ici,

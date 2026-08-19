@@ -254,8 +254,13 @@ export function Field({
   required?: boolean;
   children: ReactNode;
 }) {
+  // Colonne en pleine hauteur, champ poussé vers le bas : dans une grille, deux
+  // champs voisins dont un seul porte une phrase d'aide se retrouvaient
+  // décalés à la verticale, et la ligne semblait bancale sans qu'on voie
+  // pourquoi. Ici le bloc libellé + aide occupe la place qu'il lui faut, et les
+  // champs restent alignés entre eux.
   return (
-    <div>
+    <div className="flex h-full flex-col">
       <label htmlFor={htmlFor} className="block text-sm font-semibold text-body">
         {label}
         {/* L'astérisque seule ne suffit pas pour un lecteur d'écran. */}
@@ -267,7 +272,7 @@ export function Field({
         ) : null}
       </label>
       {hint ? <p className="mt-1 text-xs leading-relaxed text-muted">{hint}</p> : null}
-      <div className="mt-2">{children}</div>
+      <div className="mt-2 flex flex-1 flex-col justify-end">{children}</div>
       {error ? (
         <p className="mt-1.5 text-xs font-semibold text-danger">{error}</p>
       ) : null}

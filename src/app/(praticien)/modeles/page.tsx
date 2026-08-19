@@ -10,7 +10,7 @@ import {
   PageHeader,
   type BadgeTone,
 } from "@/components/ui";
-import { requireSession } from "@/lib/auth";
+import { requireCapability } from "@/lib/auth";
 import { withTenant } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { getTemplate, listTemplates } from "@/lib/repos/forms";
@@ -27,7 +27,7 @@ const KINDS: Record<string, { label: string; tone: BadgeTone }> = {
 };
 
 export default async function ModelesPage() {
-  const session = await requireSession();
+  const session = await requireCapability("templates.write");
 
   const data = await withTenant({ tenantId: session.tenant.id }, async (tx) => {
     const templates = await listTemplates(tx);

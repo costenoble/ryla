@@ -1,7 +1,7 @@
 "use server";
 
 import { recordAudit } from "@/lib/audit";
-import { requestContext, requireSession } from "@/lib/auth";
+import { requestContext, requireCapability } from "@/lib/auth";
 import { withTenant } from "@/lib/db";
 import {
   formDefinitionSchema,
@@ -71,7 +71,7 @@ export async function saveTemplate(
   _previous: TemplateEditorState,
   formData: FormData,
 ): Promise<TemplateEditorState> {
-  const session = await requireSession();
+  const session = await requireCapability("templates.write");
   const client = await requestContext();
 
   const templateId = String(formData.get("templateId") ?? "").trim() || null;
@@ -184,7 +184,7 @@ export async function importFromLibrary(
   _previous: ImportState,
   formData: FormData,
 ): Promise<ImportState> {
-  const session = await requireSession();
+  const session = await requireCapability("templates.write");
   const client = await requestContext();
   const ref = String(formData.get("libraryRef") ?? "").trim();
 
@@ -255,7 +255,7 @@ export async function duplicateTemplate(
   _previous: DuplicateState,
   formData: FormData,
 ): Promise<DuplicateState> {
-  const session = await requireSession();
+  const session = await requireCapability("templates.write");
   const client = await requestContext();
   const sourceId = String(formData.get("templateId") ?? "").trim();
 
@@ -327,7 +327,7 @@ export async function archiveTemplate(
   _previous: ArchiveState,
   formData: FormData,
 ): Promise<ArchiveState> {
-  const session = await requireSession();
+  const session = await requireCapability("templates.write");
   const client = await requestContext();
   const templateId = String(formData.get("templateId") ?? "").trim();
 

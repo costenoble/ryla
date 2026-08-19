@@ -26,6 +26,7 @@ import {
 import { requireSession } from "@/lib/auth";
 import { formatCents } from "@/lib/cerfa";
 import { withTenant } from "@/lib/db";
+import { can } from "@/lib/permissions";
 import { formatDate } from "@/lib/format";
 import { formatReflectionDate } from "@/lib/reflection";
 import {
@@ -35,6 +36,7 @@ import {
 } from "@/lib/repos/patients";
 import { listQuotesForPatient, quoteReflectionStatus } from "@/lib/repos/quotes";
 import { PaymentForm } from "./PaymentForm";
+import { PrivacyPanel } from "./PrivacyPanel";
 import { ResendLink } from "./ResendLink";
 
 export const dynamic = "force-dynamic";
@@ -267,6 +269,11 @@ export default async function PatientPage({
               </p>
             </Card>
           ) : null}
+
+          <PrivacyPanel
+            patientId={patient.id}
+            canErase={can(session.user.role, "patients.erase")}
+          />
         </FadeUp>
       </div>
     </div>

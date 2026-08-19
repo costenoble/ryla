@@ -1,7 +1,7 @@
 "use server";
 
 import { recordAudit } from "@/lib/audit";
-import { requestContext, requireSession } from "@/lib/auth";
+import { requestContext, requireCapability } from "@/lib/auth";
 import { withTenant } from "@/lib/db";
 import {
   createPatient,
@@ -77,7 +77,7 @@ export async function savePatient(
   _previous: PatientFormState,
   formData: FormData,
 ): Promise<PatientFormState> {
-  const session = await requireSession();
+  const session = await requireCapability("patients.write");
   const client = await requestContext();
   const patientId = String(formData.get("patientId") ?? "").trim() || null;
 
@@ -140,7 +140,7 @@ export async function saveQuotePayment(
   _previous: PaymentFormState,
   formData: FormData,
 ): Promise<PaymentFormState> {
-  const session = await requireSession();
+  const session = await requireCapability("quotes.write");
   const client = await requestContext();
 
   const quoteId = String(formData.get("quoteId") ?? "").trim();
@@ -190,6 +190,6 @@ export async function saveQuotePayment(
 }
 
 export async function loadPatient(patientId: string) {
-  const session = await requireSession();
+  const session = await requireCapability("patients.write");
   return withTenant({ tenantId: session.tenant.id }, (tx) => getPatient(tx, patientId));
 }

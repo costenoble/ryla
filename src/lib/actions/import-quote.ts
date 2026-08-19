@@ -1,7 +1,7 @@
 "use server";
 
 import { recordAudit } from "@/lib/audit";
-import { requestContext, requireSession } from "@/lib/auth";
+import { requestContext, requireCapability } from "@/lib/auth";
 import { sha256Hex } from "@/lib/crypto";
 import { withTenant } from "@/lib/db";
 import { issueAccessToken } from "@/lib/magic-link";
@@ -47,7 +47,7 @@ export async function importQuoteForSignature(
   _previous: ImportQuoteState,
   formData: FormData,
 ): Promise<ImportQuoteState> {
-  const session = await requireSession();
+  const session = await requireCapability("quotes.write");
   const client = await requestContext();
 
   const patientId = String(formData.get("patientId") ?? "").trim();

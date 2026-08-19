@@ -11,7 +11,7 @@ import {
 import { FadeUp, Stagger, StaggerItem } from "@/components/motion";
 import { Badge, Card, CardHeader, cx, DataRow } from "@/components/ui";
 import { recordAudit } from "@/lib/audit";
-import { requestContext, requireSession } from "@/lib/auth";
+import { requestContext, requireCapability } from "@/lib/auth";
 import { computeVisibility } from "@/lib/branching";
 import { withTenant } from "@/lib/db";
 import { formatAnswer, formatDate, formatTimestamp, shortHash } from "@/lib/format";
@@ -29,7 +29,7 @@ export default async function DossierPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const session = await requireSession();
+  const session = await requireCapability("health.read");
   const client = await requestContext();
 
   const data = await withTenant(

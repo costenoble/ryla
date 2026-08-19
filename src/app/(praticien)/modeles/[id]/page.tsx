@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { IconArrowLeft } from "@/components/icons";
 import { FadeUp } from "@/components/motion";
 import { Badge, Card, CardHeader, PageHeader } from "@/components/ui";
-import { requireSession } from "@/lib/auth";
+import { requireCapability } from "@/lib/auth";
 import { withTenant } from "@/lib/db";
 import { formatTimestamp, shortHash } from "@/lib/format";
 import { getTemplate, listTemplateVersions } from "@/lib/repos/forms";
@@ -21,7 +21,7 @@ export default async function ModelePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const session = await requireSession();
+  const session = await requireCapability("templates.write");
 
   const data = await withTenant({ tenantId: session.tenant.id }, async (tx) => {
     const template = await getTemplate(tx, id);

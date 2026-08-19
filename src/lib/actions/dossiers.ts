@@ -1,10 +1,11 @@
 "use server";
 
 import { recordAudit } from "@/lib/audit";
-import { requestContext, requireSession } from "@/lib/auth";
+import { requestContext, requireCapability } from "@/lib/auth";
 import { withTenant, type Tx } from "@/lib/db";
 import { issueAccessToken } from "@/lib/magic-link";
 import { patientInvitation, trySend } from "@/lib/notifications";
+import { matchPatient } from "@/lib/patient-match";
 import { getTemplate } from "@/lib/repos/forms";
 import { createSubmission, markSent } from "@/lib/repos/submissions";
 
@@ -55,7 +56,7 @@ export async function createAndSend(
   _previous: NewSubmissionState,
   formData: FormData,
 ): Promise<NewSubmissionState> {
-  const session = await requireSession();
+  const session = await requireCapability("submissions.send");
   const client = await requestContext();
 
   const templateId = String(formData.get("templateId") ?? "").trim();
@@ -78,18 +79,34 @@ export async function createAndSend(
           throw new Error("Ce modèle n'a pas de version publiée.");
         }
 
-        // Rapprochement sur nom + prénom + date de naissance : suffisant pour
-        // une saisie au comptoir, et sans créer de doublon à chaque envoi.
-        const [existing] = await tx<{ id: string }[]>`
-          select id from patients
+        // Rapprochement du patient : nom, prénom et date de naissance.
+        // La règle vit dans `matchPatient()`, isolée et testée — c'est elle qui
+        // décide si les réponses d'une personne rejoignent le dossier d'une
+        // autre.
+        const candidates = await tx<{ id: string; birth_date: Date | null }[]>`
+          select id, birth_date from patients
           where lower(last_name) = lower(${lastName})
             and lower(first_name) = lower(${firstName})
-            and (${birthDate || null}::date is null or birth_date = ${birthDate || null}::date)
             and deleted_at is null
-          limit 1
+          limit 5
         `;
 
-        let patientId = existing?.id;
+        const outcome = matchPatient(
+          candidates.map((candidate) => ({
+            id: candidate.id,
+            birthDate: candidate.birth_date?.toISOString().slice(0, 10) ?? null,
+          })),
+          birthDate || null,
+        );
+
+        if (outcome.kind === "ambiguous") {
+          throw new Error(
+            `${outcome.count} patients se nomment ${firstName} ${lastName}. ` +
+              "Renseignez la date de naissance pour désigner le bon dossier.",
+          );
+        }
+
+        let patientId = outcome.kind === "matched" ? outcome.patientId : undefined;
         if (!patientId) {
           const [created] = await tx<{ id: string }[]>`
             insert into patients (tenant_id, first_name, last_name, birth_date, email)

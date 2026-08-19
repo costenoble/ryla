@@ -1,7 +1,7 @@
 "use server";
 
 import { recordAudit } from "@/lib/audit";
-import { requestContext, requireSession } from "@/lib/auth";
+import { requestContext, requireCapability, requireSession } from "@/lib/auth";
 import { withTenant } from "@/lib/db";
 import {
   getTenantSelf,
@@ -84,7 +84,7 @@ export async function saveLetterheadLayout(
   _previous: SettingsState,
   formData: FormData,
 ): Promise<SettingsState> {
-  const session = await requireSession();
+  const session = await requireCapability("settings.write");
   const client = await requestContext();
 
   const letterheadMode = String(formData.get("letterheadMode") ?? "none");
@@ -143,7 +143,7 @@ export async function saveTenantSettings(
   _previous: SettingsState,
   formData: FormData,
 ): Promise<SettingsState> {
-  const session = await requireSession();
+  const session = await requireCapability("settings.write");
   const client = await requestContext();
 
   const name = String(formData.get("name") ?? "").trim();
@@ -238,6 +238,8 @@ export async function savePractitioner(
   _previous: PractitionerState,
   formData: FormData,
 ): Promise<PractitionerState> {
+  // Pas de droit particulier : chacun modifie sa propre fiche, quel que soit
+  // son rôle. Une assistante doit pouvoir corriger l'orthographe de son nom.
   const session = await requireSession();
   const client = await requestContext();
 
@@ -314,7 +316,7 @@ export async function saveLetterhead(
   _previous: LetterheadState,
   formData: FormData,
 ): Promise<LetterheadState> {
-  const session = await requireSession();
+  const session = await requireCapability("settings.write");
   const client = await requestContext();
 
   const file = formData.get("letterheadImage");

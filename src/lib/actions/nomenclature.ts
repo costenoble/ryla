@@ -1,7 +1,7 @@
 "use server";
 
 import { recordAudit } from "@/lib/audit";
-import { requestContext, requireSession } from "@/lib/auth";
+import { requestContext, requireCapability } from "@/lib/auth";
 import { CARE_BASKETS } from "@/lib/cerfa";
 import { withTenant } from "@/lib/db";
 
@@ -42,7 +42,7 @@ export async function saveNomenclatureEntry(
   _previous: ActState,
   formData: FormData,
 ): Promise<ActState> {
-  const session = await requireSession();
+  const session = await requireCapability("nomenclature.write");
   const client = await requestContext();
 
   const entryId = String(formData.get("entryId") ?? "").trim() || null;
@@ -181,7 +181,7 @@ export async function deleteNomenclatureEntry(
   _previous: ActState,
   formData: FormData,
 ): Promise<ActState> {
-  const session = await requireSession();
+  const session = await requireCapability("nomenclature.write");
   const client = await requestContext();
   const entryId = String(formData.get("entryId") ?? "").trim();
   if (!entryId) return { status: "error", message: "Acte introuvable." };

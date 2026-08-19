@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { recordAudit } from "@/lib/audit";
-import { requestContext, requireSession } from "@/lib/auth";
+import { requestContext, requireCapability } from "@/lib/auth";
 import {
   CARE_BASKETS,
   CARE_BASKET_LABELS,
@@ -88,7 +88,7 @@ export async function createQuoteDraft(
   _previous: QuoteFormState,
   formData: FormData,
 ): Promise<QuoteFormState> {
-  const session = await requireSession();
+  const session = await requireCapability("quotes.write");
   const client = await requestContext();
 
   let payload: z.infer<typeof payloadSchema>;
@@ -248,7 +248,7 @@ export async function sendQuoteForSignature(
   _previous: QuoteActionState,
   formData: FormData,
 ): Promise<QuoteActionState> {
-  const session = await requireSession();
+  const session = await requireCapability("quotes.write");
   const client = await requestContext();
   const quoteId = String(formData.get("quoteId") ?? "").trim();
   if (!quoteId) return { status: "error", message: "Devis introuvable." };
@@ -401,7 +401,7 @@ export async function deliverQuoteAction(
   _previous: QuoteActionState,
   formData: FormData,
 ): Promise<QuoteActionState> {
-  const session = await requireSession();
+  const session = await requireCapability("quotes.write");
   const client = await requestContext();
   const quoteId = String(formData.get("quoteId") ?? "").trim();
   if (!quoteId) return { status: "error", message: "Devis introuvable." };
@@ -451,7 +451,7 @@ export async function acceptQuoteAction(
   _previous: QuoteActionState,
   formData: FormData,
 ): Promise<QuoteActionState> {
-  const session = await requireSession();
+  const session = await requireCapability("quotes.write");
   const client = await requestContext();
   const quoteId = String(formData.get("quoteId") ?? "").trim();
   if (!quoteId) return { status: "error", message: "Devis introuvable." };

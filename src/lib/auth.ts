@@ -1,6 +1,7 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
+import { can, type Capability } from "./permissions";
 import { loadSession, SESSION_COOKIE, type AuthenticatedSession } from "./session";
 
 /**
@@ -29,6 +30,28 @@ export const currentSession = cache(
 export async function requireSession(): Promise<AuthenticatedSession> {
   const session = await currentSession();
   if (!session) redirect("/connexion");
+  return session;
+}
+
+/**
+ * Session assortie d'un droit.
+ *
+ * Le contrôle est fait ici, côté serveur, et non par l'affichage : masquer un
+ * bouton n'a jamais protégé une donnée. Une page appelle cette fonction avec le
+ * droit qu'elle exige, et une action serveur fait de même — les deux chemins
+ * sont indépendants, et un lien collé dans la barre d'adresse ne contourne rien.
+ */
+export async function requireCapability(
+  capability: Capability,
+): Promise<AuthenticatedSession> {
+  const session = await requireSession();
+  if (!can(session.user.role, capability)) {
+    // Redirection plutôt qu'exception : dans une page, une exception donne un
+    // écran d'erreur générique ; dans une Server Action, `redirect()` produit
+    // une réponse que le client suit. Le même appel convient aux deux, et la
+    // personne arrive sur une explication au lieu d'un mur.
+    redirect(`/acces-refuse?droit=${encodeURIComponent(capability)}`);
+  }
   return session;
 }
 
