@@ -347,3 +347,60 @@ describe("référentiel d'actes", () => {
     ).rejects.toThrow(/row-level security/i);
   });
 });
+
+/**
+ * La vérification de la chaîne est bornée par défaut : elle rejouait tout le
+ * journal du cabinet à chaque signature, ce qui aurait fini par faire attendre
+ * le patient devant son écran. Ces cas gardent les deux propriétés qui comptent
+ * — la fenêtre détecte toujours une falsification récente, et elle annonce
+ * honnêtement qu'elle n'a pas tout relu.
+ */
+describe("vérification bornée de la chaîne d'audit", () => {
+  it("annonce une vérification complète quand tout tient dans la fenêtre", async () => {
+    const status = await withTenant({ tenantId: tenantB }, (tx) =>
+      verifyAuditChain(tx, tenantB, { limit: 100 }),
+    );
+    expect(status.valid).toBe(true);
+    expect(status.complete).toBe(true);
+  });
+
+  it("signale ne pas avoir tout relu quand la fenêtre est pleine", async () => {
+    await withTenant({ tenantId: tenantB }, async (tx) => {
+      for (let i = 0; i < 4; i += 1) {
+        await recordAudit(tx, tenantB, { actorType: "system", action: `fenetre.${i}` });
+      }
+    });
+
+    const status = await withTenant({ tenantId: tenantB }, (tx) =>
+      verifyAuditChain(tx, tenantB, { limit: 2 }),
+    );
+    expect(status.valid).toBe(true);
+    expect(status.entries).toBe(2);
+    // Le doute est dit, pas masqué : une fenêtre pleine ne prouve rien sur ce
+    // qui la précède.
+    expect(status.complete).toBe(false);
+  });
+
+  it("détecte une falsification située dans la fenêtre", async () => {
+    await withTenant({ tenantId: tenantB }, (tx) =>
+      recordAudit(tx, tenantB, { actorType: "system", action: "a-falsifier" }),
+    );
+    await admin`
+      update audit_log set action = 'reecrite'
+      where tenant_id = ${tenantB} and action = 'a-falsifier'
+    `;
+
+    const status = await withTenant({ tenantId: tenantB }, (tx) =>
+      verifyAuditChain(tx, tenantB, { limit: 10 }),
+    );
+    expect(status.valid).toBe(false);
+    expect(status.brokenAt).toBeTruthy();
+  });
+
+  it("rejoue tout le journal quand on le demande explicitement", async () => {
+    const status = await withTenant({ tenantId: tenantA }, (tx) =>
+      verifyAuditChain(tx, tenantA, { limit: null }),
+    );
+    expect(status.complete).toBe(true);
+  });
+});

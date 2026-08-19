@@ -5,6 +5,7 @@ import { requireSession } from "@/lib/auth";
 import { withTenant } from "@/lib/db";
 import { listNomenclature, nomenclatureStatus } from "@/lib/repos/nomenclature";
 import { listPatients } from "@/lib/repos/patients";
+import { letterheadBlocks } from "@/lib/letterhead";
 import { formatAddress, getTenantSelf } from "@/lib/repos/tenants";
 import { QuoteEditor } from "./QuoteEditor";
 
@@ -54,7 +55,7 @@ export default async function NouveauDevisPage({
             tenantName: data.tenant.name,
             specialty: data.tenant.specialty,
             letterheadMode: data.tenant.branding.letterheadMode ?? "none",
-            letterheadText: data.tenant.branding.letterheadText ?? "",
+            letterheadBlocks: letterheadBlocks(data.tenant.branding),
             hasLetterheadImage: Boolean(data.tenant.branding.letterheadImageKey),
             primaryColor: data.tenant.branding.primaryColor ?? "#2563EB",
             practitionerName: session.user.fullName,

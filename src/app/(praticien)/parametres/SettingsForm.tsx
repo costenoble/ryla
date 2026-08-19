@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { IconAlert, IconCheck } from "@/components/icons";
+import { Letterhead } from "@/components/Letterhead";
 import { Button, Card, CardHeader, Field, inputClass } from "@/components/ui";
 import {
   saveLetterhead,
@@ -754,51 +755,12 @@ function LetterheadPreview({
           <div className="h-1 w-full rounded-full" style={{ background: primary }} />
 
           <div className="mt-4 min-h-20">
-            {mode === "image" ? (
-              hasImage ? (
-                // Image privée servie par une route authentifiée : `next/image`
-                // ne saurait pas l'optimiser et n'a rien à y gagner ici.
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src="/api/branding/letterhead"
-                  alt="En-tête du cabinet"
-                  className="max-h-28 w-full object-contain object-left"
-                />
-              ) : (
-                <p className="text-xs text-faint">Aucune image envoyée pour l'instant.</p>
-              )
-            ) : mode === "text" ? (
-              blocks.length === 0 ? (
-                <p className="text-xs text-faint">Bloc d'en-tête vide.</p>
-              ) : (
-                <div className="space-y-0.5">
-                  {blocks.map((block, index) => (
-                    <p
-                      key={index}
-                      className={`wrap-break-word text-body ${
-                        block.size === "title"
-                          ? "text-[15px]"
-                          : block.size === "small"
-                            ? "text-[10px]"
-                            : "text-xs"
-                      } ${block.bold ? "font-bold" : ""} ${
-                        block.align === "center"
-                          ? "text-center"
-                          : block.align === "right"
-                            ? "text-right"
-                            : "text-left"
-                      }`}
-                    >
-                      {block.text}
-                    </p>
-                  ))}
-                </div>
-              )
-            ) : (
-              <p className="text-xs text-faint">
-                Sans en-tête : le devis commence directement par son titre.
-              </p>
-            )}
+            <Letterhead
+              mode={mode}
+              blocks={blocks}
+              hasImage={hasImage}
+              fallbackName="Sans en-tête : le devis commence par son titre."
+            />
           </div>
 
           <div className="mt-4 border-t border-line pt-3">

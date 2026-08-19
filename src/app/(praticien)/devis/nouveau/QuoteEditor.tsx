@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { IconAlert, IconReceipt } from "@/components/icons";
+import { Letterhead } from "@/components/Letterhead";
 import { Button, Card, CardHeader, Field, inputClass } from "@/components/ui";
 import { createQuoteDraft, type QuoteFormState } from "@/lib/actions/quotes";
 import {
@@ -12,6 +13,7 @@ import {
   type CareBasket,
   type QuoteLineInput,
 } from "@/lib/cerfa";
+import type { LetterheadBlock } from "@/lib/letterhead";
 import { matchNomenclature, type NomenclatureEntry } from "@/lib/repos/nomenclature";
 import { REFLECTION_DAYS_ESTHETIQUE } from "@/lib/reflection";
 
@@ -28,7 +30,7 @@ export type QuoteContext = {
   tenantName: string;
   specialty: "dentaire" | "esthetique" | "mixte";
   letterheadMode: "none" | "text" | "image";
-  letterheadText: string;
+  letterheadBlocks: LetterheadBlock[];
   hasLetterheadImage: boolean;
   primaryColor: string;
   practitionerName: string;
@@ -613,18 +615,12 @@ function QuotePreview({
           />
 
           <div className="mt-3 min-h-14">
-            {context.letterheadMode === "image" && context.hasLetterheadImage ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src="/api/branding/letterhead"
-                alt="En-tête du cabinet"
-                className="max-h-20 w-full object-contain object-left"
-              />
-            ) : context.letterheadMode === "text" && context.letterheadText.trim() ? (
-              <p className="whitespace-pre-line text-body">{context.letterheadText}</p>
-            ) : (
-              <p className="font-bold text-body">{context.tenantName}</p>
-            )}
+            <Letterhead
+              mode={context.letterheadMode}
+              blocks={context.letterheadBlocks}
+              hasImage={context.hasLetterheadImage}
+              fallbackName={context.tenantName}
+            />
           </div>
 
           <div className="mt-3 flex items-start justify-between gap-3 border-t border-line pt-3">
