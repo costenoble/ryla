@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { IconAlert } from "@/components/icons";
 import { Button, Field, inputClass } from "@/components/ui";
@@ -10,10 +11,13 @@ const initialState: LoginState = { error: null };
 export function LoginForm({
   showCabinetField,
   tenants,
+  signupOpen,
 }: {
   showCabinetField: boolean;
   /** Liste servie en local uniquement ; vide en production. */
   tenants: { slug: string; name: string }[];
+  /** Faux quand l'inscription en ligne n'est pas ouverte : pas de lien mort. */
+  signupOpen: boolean;
 }) {
   const [state, formAction, pending] = useActionState(login, initialState);
 
@@ -97,6 +101,18 @@ export function LoginForm({
       <Button type="submit" disabled={pending} size="lg" className="w-full">
         {pending ? "Connexion…" : "Se connecter"}
       </Button>
+
+      {signupOpen ? (
+        <p className="text-center text-sm text-muted">
+          Pas encore de cabinet ?{" "}
+          <Link
+            href="/inscription"
+            className="font-semibold text-brand-600 transition hover:text-brand-700"
+          >
+            En créer un
+          </Link>
+        </p>
+      ) : null}
     </form>
   );
 }

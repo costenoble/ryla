@@ -1,0 +1,205 @@
+"use server";
+
+import { cookies } from "next/headers";
+import { recordAudit } from "@/lib/audit";
+import { requestContext } from "@/lib/auth";
+import { generateDek, hashPassword, wrapDek } from "@/lib/crypto";
+import { withPrivileged, withTenant } from "@/lib/db";
+import { env } from "@/lib/env";
+import { parseFormDefinition } from "@/lib/form-schema";
+import { librarySelection } from "@/lib/library";
+import { createSession, SESSION_COOKIE, SESSION_TTL_DAYS } from "@/lib/session";
+import { createTemplate, getTemplateByKey } from "@/lib/repos/forms";
+import { resolveTenantBySlug } from "@/lib/tenant";
+
+/**
+ * Création d'un cabinet depuis l'application.
+ *
+ * Jusqu'ici, ouvrir un cabinet demandait un script et un accès à la base. C'est
+ * tenable pour une démonstration, pas pour un produit.
+ *
+ * L'inscription est **fermée par défaut**, et c'est le point important. Un
+ * formulaire public qui crée des espaces destinés à recevoir des données de
+ * santé n'a rien d'anodin : il faut un code d'invitation, défini par
+ * `RYLA_SIGNUP_CODE`. Sans cette variable, l'inscription est simplement
+ * indisponible en production — échec fermé, comme le RLS. En développement elle
+ * reste ouverte, parce qu'on y crée des cabinets à la chaîne.
+ *
+ * Le mot de passe du praticien est haché en scrypt, et la clé de chiffrement du
+ * cabinet est scellée avec la KEK du serveur. Si celle-ci change ensuite, les
+ * données du cabinet deviennent illisibles : c'est le principe même du
+ * chiffrement en enveloppe, et c'est documenté dans le README.
+ */
+
+export type SignupState =
+  | { status: "idle" }
+  | { status: "error"; message: string; field?: string }
+  | { status: "created"; slug: string };
+
+/** Slug technique du cabinet, dérivé du nom mais corrigeable à la saisie. */
+export async function slugify(input: string): Promise<string> {
+  return input
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+}
+
+export async function signupOpen(): Promise<boolean> {
+  return Boolean(env.signupCode) || !env.isProduction;
+}
+
+export async function createCabinet(
+  _previous: SignupState,
+  formData: FormData,
+): Promise<SignupState> {
+  const client = await requestContext();
+
+  if (!(await signupOpen())) {
+    return {
+      status: "error",
+      message:
+        "L'inscription en ligne n'est pas ouverte. Contactez Ryla pour faire créer votre cabinet.",
+    };
+  }
+
+  // Le code est vérifié avant tout le reste : inutile de hacher un mot de passe
+  // pour quelqu'un qui n'a pas d'invitation.
+  const expected = env.signupCode;
+  if (expected) {
+    const provided = String(formData.get("invitation") ?? "").trim();
+    if (provided !== expected) {
+      return {
+        status: "error",
+        field: "invitation",
+        message: "Code d'invitation incorrect.",
+      };
+    }
+  }
+
+  const name = String(formData.get("name") ?? "").trim();
+  const slug = String(formData.get("slug") ?? "").trim().toLowerCase();
+  const specialty = String(formData.get("specialty") ?? "mixte");
+  const fullName = String(formData.get("fullName") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+  const rpps = String(formData.get("rpps") ?? "").trim();
+
+  if (!name) return { status: "error", field: "name", message: "Nom du cabinet manquant." };
+  if (!/^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$/.test(slug)) {
+    return {
+      status: "error",
+      field: "slug",
+      message: "L'identifiant ne peut contenir que des minuscules, des chiffres et des tirets.",
+    };
+  }
+  if (!["dentaire", "esthetique", "mixte"].includes(specialty)) {
+    return { status: "error", field: "specialty", message: "Spécialité inconnue." };
+  }
+  if (!fullName) {
+    return { status: "error", field: "fullName", message: "Votre nom est manquant." };
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    return { status: "error", field: "email", message: "Adresse email invalide." };
+  }
+  // Ce compte ouvre des dossiers médicaux : le refus est volontairement sec.
+  if (password.length < 10) {
+    return {
+      status: "error",
+      field: "password",
+      message: "Le mot de passe doit faire au moins 10 caractères.",
+    };
+  }
+  if (rpps && !/^\d{9}$|^\d{11}$/.test(rpps.replace(/\s/g, ""))) {
+    return {
+      status: "error",
+      field: "rpps",
+      message: "L'identifiant doit comporter 11 chiffres (RPPS) ou 9 (ADELI).",
+    };
+  }
+
+  if (await resolveTenantBySlug(slug)) {
+    return {
+      status: "error",
+      field: "slug",
+      message: `L'identifiant « ${slug} » est déjà pris. Choisissez-en un autre.`,
+    };
+  }
+
+  try {
+    const rows = await withPrivileged(
+      (sql) => sql<{ provision_tenant: string }[]>`
+        select app.provision_tenant(${slug}, ${name}, ${specialty}, ${wrapDek(generateDek())})
+      `,
+    );
+    const tenantId = rows[0]?.provision_tenant;
+    if (!tenantId) throw new Error("Création du cabinet impossible.");
+
+    const cookieValue = await withTenant({ tenantId }, async (tx) => {
+      const [user] = await tx<{ id: string }[]>`
+        insert into users (tenant_id, email, password_hash, full_name, role, rpps)
+        values (${tenantId}, ${email}, ${hashPassword(password)}, ${fullName}, 'owner',
+                ${rpps.replace(/\s/g, "") || null})
+        returning id
+      `;
+      if (!user) throw new Error("Création du compte impossible.");
+
+      // La bibliothèque est installée d'emblée : un espace vide ne se prend pas
+      // en main, et ces modèles sont l'essentiel de ce qu'on apporte le
+      // premier jour.
+      for (const entry of librarySelection(specialty as "dentaire" | "esthetique" | "mixte")) {
+        if (await getTemplateByKey(tx, entry.key)) continue;
+        const definition = parseFormDefinition(entry.definition);
+        await createTemplate(tx, {
+          tenantId,
+          key: entry.key,
+          title: definition.title,
+          description: definition.intro ?? null,
+          kind: entry.kind,
+          specialty: entry.specialty,
+          libraryRef: entry.libraryRef,
+          definition,
+          createdBy: user.id,
+        });
+      }
+
+      await recordAudit(tx, tenantId, {
+        actorType: "system",
+        action: "tenant.created",
+        objectType: "user",
+        objectId: user.id,
+        ip: client.ip,
+        userAgent: client.userAgent,
+        metadata: { slug, email, specialty },
+      });
+
+      const session = await createSession(tx, {
+        tenantId,
+        tenantSlug: slug,
+        userId: user.id,
+        ip: client.ip,
+        userAgent: client.userAgent,
+      });
+      return session.cookieValue;
+    });
+
+    const store = await cookies();
+    store.set(SESSION_COOKIE, cookieValue, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: env.isProduction,
+      path: "/",
+      maxAge: SESSION_TTL_DAYS * 86_400,
+    });
+
+    return { status: "created", slug };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "La création a échoué.";
+    if (message.includes("users_tenant_email_idx")) {
+      return { status: "error", field: "email", message: "Cette adresse est déjà utilisée." };
+    }
+    return { status: "error", message };
+  }
+}

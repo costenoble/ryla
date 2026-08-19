@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { IconLock, IconPen, IconShield } from "@/components/icons";
 import { Logo } from "@/components/Logo";
+import { signupOpen } from "@/lib/actions/signup";
 import { currentHost, currentSession } from "@/lib/auth";
 import { listTenantsForLogin, tenantSlugFromHost } from "@/lib/tenant";
 import { LoginForm } from "./LoginForm";
@@ -84,7 +85,11 @@ export default async function LoginPage() {
           </p>
 
           <div className="mt-7">
-            <LoginForm showCabinetField={slugFromHost === null} tenants={tenants} />
+            <LoginForm
+              showCabinetField={slugFromHost === null}
+              tenants={tenants}
+              signupOpen={await signupOpen()}
+            />
           </div>
 
           <p className="mt-6 flex items-start gap-2 text-xs leading-relaxed text-faint">

@@ -147,6 +147,17 @@ export const env = {
     return process.env.RYLA_TENANT_PICKER === "on";
   },
   /**
+   * Code d'invitation exigé à l'inscription.
+   *
+   * Un formulaire public qui crée des espaces destinés à recevoir des données
+   * de santé n'a rien d'anodin. Sans cette variable, l'inscription en ligne est
+   * indisponible en production — échec fermé, comme le RLS. En développement
+   * elle reste ouverte, parce qu'on y crée des cabinets à la chaîne.
+   */
+  get signupCode() {
+    return process.env.RYLA_SIGNUP_CODE ?? null;
+  },
+  /**
    * Exécution serverless : chaque instance est un processus court-vivant, et
    * il peut y en avoir des centaines en parallèle. Garder un pool étroit évite
    * de saturer les connexions de la base.
