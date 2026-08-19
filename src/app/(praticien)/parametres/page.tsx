@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { FadeUp } from "@/components/motion";
-import { PageHeader } from "@/components/ui";
+import { ButtonLink, PageHeader } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { withTenant } from "@/lib/db";
 import { getTenantSelf } from "@/lib/repos/tenants";
@@ -32,6 +32,11 @@ export default async function ParametresPage() {
           eyebrow="Cabinet"
           title="Réglages"
           description="Identité, en-tête des documents et mentions légales du cabinet."
+          action={
+            <ButtonLink href="/parametres/actes" variant="outline">
+              Référentiel d'actes
+            </ButtonLink>
+          }
         />
       </FadeUp>
 

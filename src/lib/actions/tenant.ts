@@ -71,6 +71,74 @@ function readLetterheadBlocks(formData: FormData): LetterheadBlock[] {
   }
 }
 
+/**
+ * En-tête seul, dans sa propre action.
+ *
+ * Séparé des réglages généraux pour deux raisons. La première est de mise en
+ * page : l'envoi de l'image doit pouvoir s'afficher juste sous l'éditeur, et
+ * deux formulaires ne s'imbriquent pas. La seconde est plus importante —
+ * composer un en-tête prend du temps, et un formulaire court s'enregistre d'un
+ * geste au lieu d'attendre qu'on ait parcouru toute la page.
+ */
+export async function saveLetterheadLayout(
+  _previous: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const session = await requireSession();
+  const client = await requestContext();
+
+  const letterheadMode = String(formData.get("letterheadMode") ?? "none");
+  if (!["none", "text", "image"].includes(letterheadMode)) {
+    return { status: "error", message: "Format d'en-tête inconnu." };
+  }
+
+  try {
+    await withTenant(
+      { tenantId: session.tenant.id, actorId: session.user.id },
+      async (tx) => {
+        const current = await getTenantSelf(tx);
+        const blocks = readLetterheadBlocks(formData);
+
+        await updateTenantSelf(tx, {
+          name: current.name,
+          legalName: current.legalName,
+          siret: current.siret,
+          finess: current.finess,
+          address: current.address,
+          dpoContact: current.dpoContact,
+          legalNotice: current.legalNotice,
+          branding: {
+            ...current.branding,
+            letterheadMode: letterheadMode as TenantBranding["letterheadMode"],
+            letterheadBlocks: blocks,
+            // L'ancien champ libre reste écrit : il sert de repli si une
+            // version antérieure de l'application relit la fiche.
+            letterheadText: blocks.map((block) => block.text).join("\n"),
+          },
+        });
+
+        await recordAudit(tx, session.tenant.id, {
+          actorType: "user",
+          actorId: session.user.id,
+          actorLabel: session.user.fullName,
+          action: "tenant.settings_updated",
+          objectType: "tenant",
+          objectId: session.tenant.id,
+          ip: client.ip,
+          userAgent: client.userAgent,
+          metadata: { letterheadMode, lines: blocks.length },
+        });
+      },
+    );
+    return { status: "saved" };
+  } catch (error) {
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "L'enregistrement a échoué.",
+    };
+  }
+}
+
 export async function saveTenantSettings(
   _previous: SettingsState,
   formData: FormData,
@@ -83,11 +151,6 @@ export async function saveTenantSettings(
     return { status: "error", message: "Le nom du cabinet est obligatoire." };
   }
 
-  const letterheadMode = String(formData.get("letterheadMode") ?? "none");
-  if (!["none", "text", "image"].includes(letterheadMode)) {
-    return { status: "error", message: "Format d'en-tête inconnu." };
-  }
-
   try {
     await withTenant(
       { tenantId: session.tenant.id, actorId: session.user.id },
@@ -97,18 +160,14 @@ export async function saveTenantSettings(
         // autre action.
         const current = await getTenantSelf(tx);
 
+        // L'en-tête n'est pas touché ici : il a son propre formulaire, et
+        // l'écraser depuis celui-ci effacerait une mise en page que le
+        // praticien vient peut-être d'enregistrer.
         const branding: TenantBranding = {
           ...current.branding,
           primaryColor: readColor(formData, "primaryColor"),
           accentColor: readColor(formData, "accentColor"),
           senderName: String(formData.get("senderName") ?? "").trim() || undefined,
-          letterheadMode: letterheadMode as TenantBranding["letterheadMode"],
-          letterheadBlocks: readLetterheadBlocks(formData),
-          // L'ancien champ libre reste écrit : il sert de repli si une version
-          // plus ancienne de l'application relit la fiche.
-          letterheadText: readLetterheadBlocks(formData)
-            .map((block) => block.text)
-            .join("\n"),
         };
 
         const input: TenantSettingsInput = {
@@ -141,7 +200,6 @@ export async function saveTenantSettings(
           objectId: session.tenant.id,
           ip: client.ip,
           userAgent: client.userAgent,
-          metadata: { letterheadMode },
         });
       },
     );

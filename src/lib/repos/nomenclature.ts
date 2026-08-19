@@ -4,14 +4,20 @@ import type { Tx } from "../db";
 /**
  * Référentiel d'actes CCAM / NGAP.
  *
- * Table de référence partagée, hors cloisonnement par cabinet : la CCAM est un
- * texte réglementaire. C'est la seule lecture du projet qui ne dépende pas du
- * contexte de tenant, et sa politique RLS l'ouvre explicitement — le reste du
- * schéma ferme, celle-ci ouvre, et c'est écrit noir sur blanc dans 0007.
+ * Deux régimes dans une seule table : les lignes à `tenant_id` nul sont la
+ * référence partagée — un texte réglementaire, lisible par tous et modifiable
+ * par personne depuis l.application — et les autres appartiennent au cabinet,
+ * qui les crée, les corrige et les supprime.
+ *
+ * C.est la seule table du projet dont la politique de lecture s.ouvre au-delà
+ * du cabinet courant. Elle le fait explicitement, et l.écriture, elle, reste
+ * fermée : cf. 0009.
  */
 
 export type NomenclatureEntry = {
   id: string;
+  /** null = référence partagée, en lecture seule. Sinon, acte du cabinet. */
+  tenantId: string | null;
   system: "CCAM" | "NGAP" | "HORS_NOMENCLATURE";
   code: string;
   label: string;
@@ -32,6 +38,7 @@ export type NomenclatureEntry = {
 
 type Row = {
   id: string;
+  tenant_id: string | null;
   system: NomenclatureEntry["system"];
   code: string;
   label: string;
@@ -52,6 +59,7 @@ type Row = {
 function map(row: Row): NomenclatureEntry {
   return {
     id: row.id,
+    tenantId: row.tenant_id,
     system: row.system,
     code: row.code,
     label: row.label,
@@ -71,7 +79,7 @@ function map(row: Row): NomenclatureEntry {
 }
 
 const COLUMNS = `
-  id, system, code, label, short_label, specialty, category,
+  id, tenant_id, system, code, label, short_label, specialty, category,
   base_reimbursement_cents, reimbursement_rate, ceiling_cents, care_basket,
   reimbursable, ngap_key, ngap_coefficient, notes, needs_review
 `;
@@ -102,13 +110,25 @@ export async function listNomenclature(
     from nomenclature
     where specialty = any(${scopes})
     order by
-      -- Les actes remboursables d'abord : c'est le gros de l'activité, et la
-      -- liste doit s'ouvrir sur ce qu'on cherche neuf fois sur dix.
+      -- Les actes du cabinet d'abord : s'il a corrigé un code, c'est sa
+      -- version qui doit remonter, pas celle qu'il a jugée fausse.
+      tenant_id nulls last,
+      -- Puis les remboursables : c'est le gros de l'activité, et la liste doit
+      -- s'ouvrir sur ce qu'on cherche neuf fois sur dix.
       reimbursable desc,
       category nulls last,
       label
   `;
-  return rows.map(map);
+
+  // Un acte du cabinet masque la référence partagée de même code : sans ça, le
+  // praticien verrait deux fois « HBLD403 » et cliquerait sur celui du dessus,
+  // qui n'est pas forcément le sien.
+  const overridden = new Set(
+    rows.filter((row) => row.tenant_id).map((row) => `${row.system}:${row.code}`),
+  );
+  return rows
+    .filter((row) => row.tenant_id || !overridden.has(`${row.system}:${row.code}`))
+    .map(map);
 }
 
 export async function getNomenclatureEntry(

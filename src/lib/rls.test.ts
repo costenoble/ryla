@@ -259,3 +259,91 @@ describe("journal d'audit", () => {
     expect(status.brokenAt).toBeTruthy();
   });
 });
+
+/**
+ * Le référentiel d'actes est la seule table dont la lecture s'ouvre au-delà du
+ * cabinet courant : la CCAM est un texte réglementaire, pas une donnée de
+ * cabinet. Cette ouverture ne doit surtout pas s'étendre à l'écriture — un
+ * cabinet qui pourrait réécrire une ligne partagée la casserait pour tous les
+ * autres, en silence.
+ */
+describe("référentiel d'actes", () => {
+  let sharedId = "";
+
+  beforeAll(async () => {
+    const [row] = await admin<{ id: string }[]>`
+      insert into nomenclature (system, code, label, specialty, source)
+      values ('CCAM', ${`PART-${suffix}`}, 'Acte de référence', 'commun', 'test')
+      returning id
+    `;
+    sharedId = row!.id;
+
+    await withTenant({ tenantId: tenantA }, async (tx) => {
+      await tx`
+        insert into nomenclature (tenant_id, system, code, label, specialty)
+        values (${tenantA}, 'CCAM', ${`PROPRE-${suffix}`}, 'Acte du cabinet A', 'commun')
+      `;
+    });
+  });
+
+  afterAll(async () => {
+    await admin`delete from nomenclature where code like ${`%${suffix}`}`;
+  });
+
+  it("montre la référence partagée à tous les cabinets", async () => {
+    for (const tenantId of [tenantA, tenantB]) {
+      const rows = await withTenant({ tenantId }, (tx) =>
+        tx<{ code: string }[]>`
+          select code from nomenclature where code = ${`PART-${suffix}`}
+        `,
+      );
+      expect(rows).toHaveLength(1);
+    }
+  });
+
+  it("ne montre pas à un cabinet les actes d'un autre", async () => {
+    const rows = await withTenant({ tenantId: tenantB }, (tx) =>
+      tx<{ code: string }[]>`
+        select code from nomenclature where code = ${`PROPRE-${suffix}`}
+      `,
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it("refuse de modifier une ligne du référentiel partagé", async () => {
+    // Silencieusement sans effet plutôt qu'en erreur : le prédicat `using` de
+    // la politique de mise à jour rend simplement la ligne invisible à
+    // l'écriture. C'est ce que l'action applicative détecte pour proposer une
+    // copie plutôt qu'une modification.
+    const rows = await withTenant({ tenantId: tenantA }, (tx) =>
+      tx<{ id: string }[]>`
+        update nomenclature set label = 'détourné'
+        where id = ${sharedId} returning id
+      `,
+    );
+    expect(rows).toHaveLength(0);
+
+    const [check] = await admin<{ label: string }[]>`
+      select label from nomenclature where id = ${sharedId}
+    `;
+    expect(check?.label).toBe("Acte de référence");
+  });
+
+  it("refuse de supprimer une ligne du référentiel partagé", async () => {
+    const rows = await withTenant({ tenantId: tenantA }, (tx) =>
+      tx<{ id: string }[]>`delete from nomenclature where id = ${sharedId} returning id`,
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it("refuse de créer un acte au nom d'un autre cabinet", async () => {
+    await expect(
+      withTenant({ tenantId: tenantA }, async (tx) => {
+        await tx`
+          insert into nomenclature (tenant_id, system, code, label, specialty)
+          values (${tenantB}, 'CCAM', ${`VOLE-${suffix}`}, 'Acte volé', 'commun')
+        `;
+      }),
+    ).rejects.toThrow(/row-level security/i);
+  });
+});

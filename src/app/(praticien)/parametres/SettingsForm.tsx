@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { IconAlert, IconCheck } from "@/components/icons";
 import { Button, Card, CardHeader, Field, inputClass } from "@/components/ui";
 import {
   saveLetterhead,
+  saveLetterheadLayout,
   savePractitioner,
   saveTenantSettings,
   type LetterheadState,
@@ -57,21 +58,21 @@ export function SettingsForm({
       <div className="min-w-0 space-y-6">
         <PractitionerCard values={practitioner} />
 
-        <TenantCard
-          tenant={tenant}
+        {/* L'en-tête a son propre formulaire : deux formulaires ne s'imbriquent
+            pas, et c'est la seule façon que l'envoi de l'image s'affiche juste
+            en dessous plutôt qu'en bas de page. */}
+        <LetterheadCard
           mode={mode}
           onMode={setMode}
           blocks={blocks}
           onBlocks={setBlocks}
-          primary={primary}
-          onPrimary={setPrimary}
         />
 
-        {/* Hors du formulaire des réglages, et non dedans : deux formulaires
-            imbriqués n'existent pas en HTML. */}
         {mode === "image" ? (
           <LetterheadUpload hasImage={Boolean(tenant.branding.letterheadImageKey)} />
         ) : null}
+
+        <TenantCard tenant={tenant} primary={primary} onPrimary={setPrimary} />
       </div>
 
       <div className="min-w-0 xl:sticky xl:top-6">
@@ -161,25 +162,40 @@ function PractitionerCard({ values }: { values: PractitionerValues }) {
 
 function TenantCard({
   tenant,
-  mode,
-  onMode,
-  blocks,
-  onBlocks,
   primary,
   onPrimary,
 }: {
   tenant: TenantSelf;
-  mode: string;
-  onMode: (value: "none" | "text" | "image") => void;
-  blocks: LetterheadBlock[];
-  onBlocks: (value: LetterheadBlock[]) => void;
   primary: string;
   onPrimary: (value: string) => void;
 }) {
   const [state, action, pending] = useActionState(saveTenantSettings, idleSettings);
 
+  // Un seul `onChange` sur le formulaire : les évènements des champs remontent,
+  // y compris ceux des composants contrôlés de l'éditeur d'en-tête. Suivre
+  // chaque champ séparément aurait laissé passer celui qu'on aurait oublié.
+  const [dirty, setDirty] = useState(false);
+  const saved = state.status === "saved";
+
+  useEffect(() => {
+    if (saved) setDirty(false);
+  }, [saved]);
+
+  // Composer un en-tête prend du temps, et le perdre en changeant d'onglet est
+  // une déception qu'on n'a pas le droit d'infliger deux fois.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
   return (
-    <form action={action} className="space-y-6">
+    <form
+      action={action}
+      onChange={() => setDirty(true)}
+      className="space-y-6 pb-20"
+    >
       <Card>
         <CardHeader
           title="Identité du cabinet"
@@ -275,58 +291,6 @@ function TenantCard({
 
       <Card>
         <CardHeader
-          title="En-tête des documents"
-          subtitle="Un bloc de texte, ou votre papier à en-tête scanné."
-        />
-        <div className="space-y-5 p-5">
-          <div className="flex flex-wrap gap-2">
-            {(
-              [
-                ["text", "Texte"],
-                ["image", "Image"],
-                ["none", "Aucun"],
-              ] as const
-            ).map(([value, label]) => (
-              <label
-                key={value}
-                className={`cursor-pointer rounded-xl border px-4 py-2 text-sm font-medium transition ${
-                  mode === value
-                    ? "border-brand-600 bg-brand-50 text-brand-700"
-                    : "border-line text-muted hover:border-line-strong"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="letterheadMode"
-                  value={value}
-                  checked={mode === value}
-                  onChange={() => onMode(value)}
-                  className="sr-only"
-                />
-                {label}
-              </label>
-            ))}
-          </div>
-
-          {mode === "text" ? (
-            <BlockEditor blocks={blocks} onChange={onBlocks} />
-          ) : null}
-          <input
-            type="hidden"
-            name="letterheadBlocks"
-            value={JSON.stringify(blocks)}
-          />
-
-          {mode === "image" ? (
-            <p className="text-sm leading-relaxed text-muted">
-              L'envoi de l'image se fait dans le bloc ci-dessous, séparément.
-            </p>
-          ) : null}
-        </div>
-      </Card>
-
-      <Card>
-        <CardHeader
           title="Couleurs et expéditeur"
           subtitle="Le portail patient et les emails reprennent ces éléments."
         />
@@ -409,6 +373,120 @@ function TenantCard({
           <FormFooter
             pending={pending}
             label="Enregistrer les réglages du cabinet"
+            saved={saved}
+            error={state.status === "error" ? state.message : null}
+          />
+        </div>
+      </Card>
+
+      {dirty ? (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 px-4 py-3 shadow-card backdrop-blur">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-end gap-3">
+            <span className="mr-auto flex items-center gap-2 text-sm font-medium text-caution">
+              <IconAlert className="size-4" />
+              Modifications non enregistrées
+            </span>
+            <Button type="submit" disabled={pending}>
+              {pending ? "Enregistrement…" : "Enregistrer"}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </form>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+
+/**
+ * En-tête des documents, dans son propre formulaire.
+ *
+ * Court et enregistrable d'un geste : composer un en-tête prend du temps, et
+ * devoir parcourir toute la page des réglages pour trouver le bouton a déjà
+ * coûté un travail perdu.
+ */
+function LetterheadCard({
+  mode,
+  onMode,
+  blocks,
+  onBlocks,
+}: {
+  mode: string;
+  onMode: (value: "none" | "text" | "image") => void;
+  blocks: LetterheadBlock[];
+  onBlocks: (value: LetterheadBlock[]) => void;
+}) {
+  const [state, action, pending] = useActionState(saveLetterheadLayout, idleSettings);
+  const [dirty, setDirty] = useState(false);
+  const saved = state.status === "saved";
+
+  useEffect(() => {
+    if (saved) setDirty(false);
+  }, [saved]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
+  return (
+    <form action={action} onChange={() => setDirty(true)}>
+      <Card>
+        <CardHeader
+          title="En-tête des documents"
+          subtitle="Un bloc de texte, ou votre papier à en-tête scanné."
+        />
+        <div className="space-y-5 p-5">
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ["text", "Texte"],
+                ["image", "Image"],
+                ["none", "Aucun"],
+              ] as const
+            ).map(([value, label]) => (
+              <label
+                key={value}
+                className={`cursor-pointer rounded-xl border px-4 py-2 text-sm font-medium transition ${
+                  mode === value
+                    ? "border-brand-600 bg-brand-50 text-brand-700"
+                    : "border-line text-muted hover:border-line-strong"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="letterheadMode"
+                  value={value}
+                  checked={mode === value}
+                  onChange={() => onMode(value)}
+                  className="sr-only"
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+
+          {mode === "text" ? (
+            <BlockEditor blocks={blocks} onChange={onBlocks} />
+          ) : null}
+          <input
+            type="hidden"
+            name="letterheadBlocks"
+            value={JSON.stringify(blocks)}
+          />
+
+          {mode === "image" ? (
+            <p className="text-sm leading-relaxed text-muted">
+              L'envoi de l'image se fait dans le bloc ci-dessous, séparément.
+            </p>
+          ) : null}
+
+          <FormFooter
+            pending={pending}
+            label="Enregistrer l'en-tête"
             saved={state.status === "saved"}
             error={state.status === "error" ? state.message : null}
           />

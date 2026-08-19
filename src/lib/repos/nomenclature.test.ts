@@ -10,6 +10,7 @@ import { matchNomenclature, type NomenclatureEntry } from "./nomenclature";
 function entry(partial: Partial<NomenclatureEntry> & { code: string; label: string }): NomenclatureEntry {
   return {
     id: partial.code,
+    tenantId: null,
     system: "CCAM",
     shortLabel: null,
     specialty: "dentaire",
