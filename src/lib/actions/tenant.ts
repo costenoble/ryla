@@ -10,6 +10,7 @@ import {
 } from "@/lib/repos/tenants";
 import { documentStore } from "@/lib/storage";
 import type { TenantBranding } from "@/lib/tenant";
+import type { LetterheadBlock } from "@/lib/letterhead";
 
 /**
  * Réglages du cabinet.
@@ -34,6 +35,40 @@ const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 function readColor(formData: FormData, field: string): string | undefined {
   const value = String(formData.get(field) ?? "").trim();
   return HEX_COLOR.test(value) ? value : undefined;
+}
+
+const SIZES = new Set(["title", "normal", "small"]);
+const ALIGNS = new Set(["left", "center", "right"]);
+
+/**
+ * Lit l'en-tête composé, transmis en JSON par l'éditeur.
+ *
+ * Revalidé intégralement : la mise en forme finit dans un PDF rendu côté
+ * serveur, et une taille inconnue y ferait échouer la génération d'un document
+ * signé — au pire moment, celui où le patient valide.
+ */
+function readLetterheadBlocks(formData: FormData): LetterheadBlock[] {
+  try {
+    const raw: unknown = JSON.parse(String(formData.get("letterheadBlocks") ?? "[]"));
+    if (!Array.isArray(raw)) return [];
+
+    return raw
+      .slice(0, 12)
+      .map((entry) => {
+        const block = entry as Record<string, unknown>;
+        const size = String(block.size ?? "normal");
+        const align = String(block.align ?? "left");
+        return {
+          text: String(block.text ?? "").slice(0, 200),
+          bold: block.bold === true,
+          size: (SIZES.has(size) ? size : "normal") as LetterheadBlock["size"],
+          align: (ALIGNS.has(align) ? align : "left") as LetterheadBlock["align"],
+        };
+      })
+      .filter((block) => block.text.trim() !== "");
+  } catch {
+    return [];
+  }
 }
 
 export async function saveTenantSettings(
@@ -68,7 +103,12 @@ export async function saveTenantSettings(
           accentColor: readColor(formData, "accentColor"),
           senderName: String(formData.get("senderName") ?? "").trim() || undefined,
           letterheadMode: letterheadMode as TenantBranding["letterheadMode"],
-          letterheadText: String(formData.get("letterheadText") ?? "").trim() || undefined,
+          letterheadBlocks: readLetterheadBlocks(formData),
+          // L'ancien champ libre reste écrit : il sert de repli si une version
+          // plus ancienne de l'application relit la fiche.
+          letterheadText: readLetterheadBlocks(formData)
+            .map((block) => block.text)
+            .join("\n"),
         };
 
         const input: TenantSettingsInput = {
@@ -106,6 +146,84 @@ export async function saveTenantSettings(
       },
     );
 
+    return { status: "saved" };
+  } catch (error) {
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "L'enregistrement a échoué.",
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Fiche du praticien
+// ---------------------------------------------------------------------------
+
+export type PractitionerState =
+  | { status: "idle" }
+  | { status: "error"; message: string }
+  | { status: "saved" };
+
+/**
+ * Identité professionnelle de l'utilisateur connecté.
+ *
+ * Le RPPS n'est pas un champ décoratif : l'arrêté du 31 octobre 2020 impose
+ * l'identifiant du praticien sur le devis conventionnel, et `checkCerfaCompleteness`
+ * refuse d'enregistrer sans lui. Tant qu'il n'était modifiable que par script,
+ * un cabinet créé sans RPPS ne pouvait tout simplement pas établir de devis —
+ * sur un message d'erreur qui ne disait pas où le corriger.
+ *
+ * Chacun ne modifie que sa propre fiche : `where id = <utilisateur en session>`,
+ * et le RLS borne déjà la table au cabinet.
+ */
+export async function savePractitioner(
+  _previous: PractitionerState,
+  formData: FormData,
+): Promise<PractitionerState> {
+  const session = await requireSession();
+  const client = await requestContext();
+
+  const fullName = String(formData.get("fullName") ?? "").trim();
+  const rpps = String(formData.get("rpps") ?? "").trim();
+  const specialityLabel = String(formData.get("specialityLabel") ?? "").trim();
+
+  if (!fullName) {
+    return { status: "error", message: "Le nom du praticien est obligatoire." };
+  }
+  // Onze chiffres pour un RPPS, neuf pour un ADELI. On accepte les deux et on
+  // refuse le reste : un identifiant mal saisi fait rejeter le devis par la
+  // complémentaire, bien plus tard et sans qu'on sache pourquoi.
+  if (rpps && !/^\d{9}$|^\d{11}$/.test(rpps.replace(/\s/g, ""))) {
+    return {
+      status: "error",
+      message: "L'identifiant doit comporter 11 chiffres (RPPS) ou 9 (ADELI).",
+    };
+  }
+
+  try {
+    await withTenant(
+      { tenantId: session.tenant.id, actorId: session.user.id },
+      async (tx) => {
+        await tx`
+          update users set
+            full_name = ${fullName},
+            rpps = ${rpps.replace(/\s/g, "") || null},
+            speciality_label = ${specialityLabel || null},
+            updated_at = now()
+          where id = ${session.user.id}
+        `;
+        await recordAudit(tx, session.tenant.id, {
+          actorType: "user",
+          actorId: session.user.id,
+          actorLabel: fullName,
+          action: "user.profile_updated",
+          objectType: "user",
+          objectId: session.user.id,
+          ip: client.ip,
+          userAgent: client.userAgent,
+        });
+      },
+    );
     return { status: "saved" };
   } catch (error) {
     return {

@@ -11,9 +11,19 @@ export const metadata: Metadata = { title: "Réglages" };
 
 export default async function ParametresPage() {
   const session = await requireSession();
-  const tenant = await withTenant({ tenantId: session.tenant.id }, (tx) =>
-    getTenantSelf(tx),
-  );
+
+  const data = await withTenant({ tenantId: session.tenant.id }, async (tx) => {
+    // La session ne porte pas la spécialité affichée : elle ne sert qu'ici,
+    // et l'ajouter au cookie de session pour un champ de réglages serait la
+    // faire voyager à chaque requête.
+    const [profile] = await tx<{ speciality_label: string | null }[]>`
+      select speciality_label from users where id = ${session.user.id}
+    `;
+    return {
+      tenant: await getTenantSelf(tx),
+      specialityLabel: profile?.speciality_label ?? null,
+    };
+  });
 
   return (
     <div>
@@ -26,7 +36,14 @@ export default async function ParametresPage() {
       </FadeUp>
 
       <FadeUp delay={0.05}>
-        <SettingsForm tenant={tenant} />
+        <SettingsForm
+          tenant={data.tenant}
+          practitioner={{
+            fullName: session.user.fullName,
+            rpps: session.user.rpps,
+            specialityLabel: data.specialityLabel,
+          }}
+        />
       </FadeUp>
     </div>
   );

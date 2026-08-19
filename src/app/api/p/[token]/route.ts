@@ -22,6 +22,7 @@ import {
   writeAnswers,
 } from "@/lib/repos/submissions";
 import { buildStorageKey, documentStore } from "@/lib/storage";
+import { letterheadBlocks } from "@/lib/tenant";
 
 /**
  * API du portail patient.
@@ -195,6 +196,29 @@ async function handle(
 
     const chain = await verifyAuditChain(tx, tenantId);
 
+    // Pièce importée du logiciel métier : son empreinte entre au faisceau, et
+    // ses pages seront reproduites en tête du document signé.
+    const [source] = await tx<
+      { filename: string; storage_key: string; sha256: string; byte_size: number }[]
+    >`
+      select d.filename, d.storage_key, d.sha256, d.byte_size
+      from submissions s
+      join documents d on d.id = s.source_document_id
+      where s.id = ${submissionId}
+    `;
+
+    let attachmentBytes: Buffer | null = null;
+    if (source) {
+      try {
+        attachmentBytes = await documentStore(tx, tenantId).get(source.storage_key);
+      } catch {
+        // La pièce est illisible dans le magasin : on signe quand même, et
+        // l'annexe de preuve porte son empreinte d'origine. Refuser la
+        // signature ici punirait le patient d'un incident de stockage.
+        attachmentBytes = null;
+      }
+    }
+
     const proof = buildProofBundle({
       submissionId,
       tenantName: tenant.name,
@@ -236,6 +260,14 @@ async function handle(
         submission.definition.sections.map((s) => ({ id: s.id, title: s.title })),
       ),
       otp: null,
+      attachment: source
+        ? {
+            filename: source.filename,
+            sha256: source.sha256,
+            byteSize: source.byte_size,
+            source: "logiciel du cabinet",
+          }
+        : null,
       auditChainHead: chain.head,
     });
 
@@ -249,6 +281,12 @@ async function handle(
         legalNotice: tenant.legalNotice,
         address: formatAddress(tenant.address),
         brandColor: tenant.branding.primaryColor ?? null,
+        // Uniquement en mode texte : une image d'en-tête demanderait de
+        // l'embarquer dans le PDF, ce qui n'est pas encore fait.
+        letterhead:
+          tenant.branding.letterheadMode === "text"
+            ? letterheadBlocks(tenant.branding)
+            : null,
       },
       patient: {
         displayName: submission.patient
@@ -266,6 +304,10 @@ async function handle(
         imagePng: signatureImage,
       },
       proof,
+      // Le devis du logiciel métier est reproduit en tête, page pour page et
+      // sans surcharge : c'est la pièce du cabinet, Ryla ne fait que
+      // l'envelopper de sa preuve.
+      attachment: attachmentBytes,
     });
 
     const storageKey = buildStorageKey({

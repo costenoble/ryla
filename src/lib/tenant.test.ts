@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { tenantSlugFromHost } from "./tenant";
+import { letterheadBlocks, tenantSlugFromHost } from "./tenant";
 
 /**
  * Résolution du cabinet depuis l'hôte.
@@ -57,5 +57,31 @@ describe("tenantSlugFromHost", () => {
   it("refuse un sous-sous-domaine", () => {
     process.env.APP_TENANT_DOMAIN = "ryla.fr";
     expect(tenantSlugFromHost("a.b.ryla.fr")).toBeNull();
+  });
+});
+
+describe("en-tête de cabinet", () => {
+  it("garde les blocs structurés quand ils existent", () => {
+    const blocks = [{ text: "Cabinet Ryla", bold: true, size: "title" as const }];
+    expect(letterheadBlocks({ letterheadBlocks: blocks })).toEqual(blocks);
+  });
+
+  it("migre un ancien bloc de texte, première ligne en titre", () => {
+    // Les cabinets qui avaient saisi un bloc libre ne doivent rien perdre : la
+    // convention qu'ils appliquaient à la main devient la mise en forme.
+    const result = letterheadBlocks({
+      letterheadText: "Cabinet Ryla\n12 rue des Lilas\n75011 Paris",
+    });
+    expect(result).toHaveLength(3);
+    expect(result[0]).toMatchObject({ text: "Cabinet Ryla", bold: true, size: "title" });
+    expect(result[1]).toMatchObject({ text: "12 rue des Lilas", size: "normal" });
+  });
+
+  it("écarte les lignes vides d'un ancien bloc", () => {
+    expect(letterheadBlocks({ letterheadText: "Cabinet\n\n\nParis" })).toHaveLength(2);
+  });
+
+  it("ne renvoie rien quand aucun en-tête n'est défini", () => {
+    expect(letterheadBlocks({})).toEqual([]);
   });
 });

@@ -5,365 +5,681 @@ import { IconAlert, IconCheck } from "@/components/icons";
 import { Button, Card, CardHeader, Field, inputClass } from "@/components/ui";
 import {
   saveLetterhead,
+  savePractitioner,
   saveTenantSettings,
   type LetterheadState,
+  type PractitionerState,
   type SettingsState,
 } from "@/lib/actions/tenant";
 import type { TenantSelf } from "@/lib/repos/tenants";
-
-const initial: SettingsState = { status: "idle" };
-const initialLetterhead: LetterheadState = { status: "idle" };
+import { letterheadBlocks as readBlocks, type LetterheadBlock } from "@/lib/letterhead";
 
 /**
  * Réglages du cabinet.
  *
- * L'aperçu d'en-tête est à droite et se met à jour à la frappe : c'est le seul
- * endroit du produit où le praticien décide de ce qui sera imprimé en tête de
- * ses devis, et il doit le voir avant d'enregistrer, pas après avoir envoyé un
- * document à un patient.
+ * Trois formulaires **côte à côte**, jamais imbriqués : un `<form>` dans un
+ * `<form>` est invalide, et le navigateur supprime silencieusement l'intérieur
+ * — le bouton d'envoi de l'image soumettait en réalité le formulaire des
+ * réglages. Rien ne le signalait, ni à la compilation ni à l'exécution.
+ *
+ * L'aperçu d'en-tête se met à jour à la frappe : c'est le seul endroit du
+ * produit où le praticien décide de ce qui sera imprimé en tête de ses devis,
+ * et il doit le voir avant d'enregistrer — pas après l'avoir envoyé à un
+ * patient.
  */
-export function SettingsForm({ tenant }: { tenant: TenantSelf }) {
-  const [state, formAction, pending] = useActionState(saveTenantSettings, initial);
 
+export type PractitionerValues = {
+  fullName: string;
+  rpps: string | null;
+  specialityLabel: string | null;
+};
+
+const idleSettings: SettingsState = { status: "idle" };
+const idleLetterhead: LetterheadState = { status: "idle" };
+const idlePractitioner: PractitionerState = { status: "idle" };
+
+export function SettingsForm({
+  tenant,
+  practitioner,
+}: {
+  tenant: TenantSelf;
+  practitioner: PractitionerValues;
+}) {
   const [mode, setMode] = useState(tenant.branding.letterheadMode ?? "none");
-  const [text, setText] = useState(
-    tenant.branding.letterheadText ?? defaultLetterhead(tenant),
-  );
+  const [blocks, setBlocks] = useState<LetterheadBlock[]>(() => {
+    const existing = readBlocks(tenant.branding);
+    return existing.length > 0 ? existing : defaultLetterhead(tenant);
+  });
   const [primary, setPrimary] = useState(tenant.branding.primaryColor ?? "#2563EB");
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <form action={formAction} className="space-y-6">
-        <Card>
-          <CardHeader
-            title="Identité du cabinet"
-            subtitle="Ces mentions figurent sur les devis et les documents signés."
-          />
-          <div className="space-y-5 p-5">
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Field label="Nom du cabinet" htmlFor="name" required>
-                <input
-                  id="name"
-                  name="name"
-                  required
-                  defaultValue={tenant.name}
-                  className={inputClass}
-                />
-              </Field>
-              <Field label="Raison sociale" htmlFor="legalName">
-                <input
-                  id="legalName"
-                  name="legalName"
-                  defaultValue={tenant.legalName ?? ""}
-                  className={inputClass}
-                />
-              </Field>
-            </div>
+    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="min-w-0 space-y-6">
+        <PractitionerCard values={practitioner} />
 
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Field label="SIRET" htmlFor="siret">
-                <input
-                  id="siret"
-                  name="siret"
-                  defaultValue={tenant.siret ?? ""}
-                  className={inputClass}
-                />
-              </Field>
-              <Field
-                label="FINESS"
-                htmlFor="finess"
-                hint="Pour les structures qui en disposent."
-              >
-                <input
-                  id="finess"
-                  name="finess"
-                  defaultValue={tenant.finess ?? ""}
-                  className={inputClass}
-                />
-              </Field>
-            </div>
+        <TenantCard
+          tenant={tenant}
+          mode={mode}
+          onMode={setMode}
+          blocks={blocks}
+          onBlocks={setBlocks}
+          primary={primary}
+          onPrimary={setPrimary}
+        />
 
-            <Field label="Adresse" htmlFor="street">
-              <input
-                id="street"
-                name="street"
-                defaultValue={tenant.address.street ?? ""}
-                className={inputClass}
-              />
-            </Field>
+        {/* Hors du formulaire des réglages, et non dedans : deux formulaires
+            imbriqués n'existent pas en HTML. */}
+        {mode === "image" ? (
+          <LetterheadUpload hasImage={Boolean(tenant.branding.letterheadImageKey)} />
+        ) : null}
+      </div>
 
-            <div className="grid gap-5 sm:grid-cols-3">
-              <Field label="Code postal" htmlFor="postalCode">
-                <input
-                  id="postalCode"
-                  name="postalCode"
-                  defaultValue={tenant.address.postalCode ?? ""}
-                  className={inputClass}
-                />
-              </Field>
-              <Field label="Ville" htmlFor="city">
-                <input
-                  id="city"
-                  name="city"
-                  defaultValue={tenant.address.city ?? ""}
-                  className={inputClass}
-                />
-              </Field>
-              <Field label="Téléphone" htmlFor="phone">
-                <input
-                  id="phone"
-                  name="phone"
-                  defaultValue={tenant.address.phone ?? ""}
-                  className={inputClass}
-                />
-              </Field>
-            </div>
-          </div>
-        </Card>
-
-        <Card>
-          <CardHeader
-            title="En-tête des documents"
-            subtitle="Un bloc de texte, ou votre papier à en-tête scanné."
-          />
-          <div className="space-y-5 p-5">
-            <div className="flex flex-wrap gap-2">
-              {(
-                [
-                  ["text", "Texte"],
-                  ["image", "Image"],
-                  ["none", "Aucun"],
-                ] as const
-              ).map(([value, label]) => (
-                <label
-                  key={value}
-                  className={`cursor-pointer rounded-xl border px-4 py-2 text-sm font-medium transition ${
-                    mode === value
-                      ? "border-brand-600 bg-brand-50 text-brand-700"
-                      : "border-line text-muted hover:border-line-strong"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="letterheadMode"
-                    value={value}
-                    checked={mode === value}
-                    onChange={() => setMode(value)}
-                    className="sr-only"
-                  />
-                  {label}
-                </label>
-              ))}
-            </div>
-
-            {mode === "text" ? (
-              <Field
-                label="Bloc d'en-tête"
-                htmlFor="letterheadText"
-                hint="Une ligne par information. C'est ce qui s'imprime en haut du devis."
-              >
-                <textarea
-                  id="letterheadText"
-                  name="letterheadText"
-                  rows={6}
-                  value={text}
-                  onChange={(event) => setText(event.target.value)}
-                  className={`${inputClass} font-mono text-sm`}
-                />
-              </Field>
-            ) : (
-              <input type="hidden" name="letterheadText" value={text} />
-            )}
-
-            {mode === "image" ? <LetterheadUpload hasImage={Boolean(tenant.branding.letterheadImageKey)} /> : null}
-          </div>
-        </Card>
-
-        <Card>
-          <CardHeader
-            title="Couleurs et expéditeur"
-            subtitle="Le portail patient et les emails reprennent ces éléments."
-          />
-          <div className="space-y-5 p-5">
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Field label="Couleur principale" htmlFor="primaryColor">
-                <div className="flex items-center gap-3">
-                  <input
-                    id="primaryColor"
-                    name="primaryColor"
-                    type="color"
-                    value={primary}
-                    onChange={(event) => setPrimary(event.target.value)}
-                    className="h-10 w-16 cursor-pointer rounded-lg border border-line"
-                  />
-                  <span className="tabular text-sm text-muted">{primary}</span>
-                </div>
-              </Field>
-              <Field
-                label="Nom d'expéditeur"
-                htmlFor="senderName"
-                hint="Affiché au patient. L'adresse d'envoi reste celle de Ryla."
-              >
-                <input
-                  id="senderName"
-                  name="senderName"
-                  defaultValue={tenant.branding.senderName ?? tenant.name}
-                  className={inputClass}
-                />
-              </Field>
-            </div>
-            <input
-              type="hidden"
-              name="accentColor"
-              value={tenant.branding.accentColor ?? "#EA580C"}
-            />
-          </div>
-        </Card>
-
-        <Card>
-          <CardHeader
-            title="Mentions légales et DPO"
-            subtitle="Le cabinet est responsable de traitement ; Ryla n'est que sous-traitant. Ces mentions sont les vôtres."
-          />
-          <div className="space-y-5 p-5">
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Field label="Contact DPO — nom" htmlFor="dpoName">
-                <input
-                  id="dpoName"
-                  name="dpoName"
-                  defaultValue={tenant.dpoContact.name ?? ""}
-                  className={inputClass}
-                />
-              </Field>
-              <Field label="Contact DPO — email" htmlFor="dpoEmail">
-                <input
-                  id="dpoEmail"
-                  name="dpoEmail"
-                  type="email"
-                  defaultValue={tenant.dpoContact.email ?? ""}
-                  className={inputClass}
-                />
-              </Field>
-            </div>
-            <Field
-              label="Mentions légales"
-              htmlFor="legalNotice"
-              hint="Reprises au bas des documents signés et sur le portail patient."
-            >
-              <textarea
-                id="legalNotice"
-                name="legalNotice"
-                rows={4}
-                defaultValue={tenant.legalNotice ?? ""}
-                className={inputClass}
-              />
-            </Field>
-          </div>
-        </Card>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" disabled={pending} size="lg">
-            {pending ? "Enregistrement…" : "Enregistrer les réglages"}
-          </Button>
-          {state.status === "saved" ? (
-            <span className="flex items-center gap-1.5 text-sm font-semibold text-positive">
-              <IconCheck className="size-4" />
-              Réglages enregistrés
-            </span>
-          ) : null}
-          {state.status === "error" ? (
-            <span
-              role="alert"
-              className="flex items-center gap-1.5 text-sm font-semibold text-danger"
-            >
-              <IconAlert className="size-4" />
-              {state.message}
-            </span>
-          ) : null}
-        </div>
-      </form>
-
-      <div className="lg:sticky lg:top-6 lg:self-start">
+      <div className="min-w-0 xl:sticky xl:top-6">
         <LetterheadPreview
           mode={mode}
-          text={text}
+          blocks={blocks}
           primary={primary}
           hasImage={Boolean(tenant.branding.letterheadImageKey)}
+          practitioner={practitioner}
         />
       </div>
     </div>
   );
 }
 
-/**
- * Envoi de l'image, dans son propre formulaire.
- *
- * Un `<form>` imbriqué serait invalide en HTML, et fusionner l'image au reste
- * des réglages obligerait à repasser deux mégaoctets à chaque changement de
- * couleur.
- */
-function LetterheadUpload({ hasImage }: { hasImage: boolean }) {
-  const [state, formAction, pending] = useActionState(saveLetterhead, initialLetterhead);
+// ---------------------------------------------------------------------------
+
+function PractitionerCard({ values }: { values: PractitionerValues }) {
+  const [state, action, pending] = useActionState(savePractitioner, idlePractitioner);
+  const missingRpps = !values.rpps;
 
   return (
-    <div className="rounded-xl border border-dashed border-line-strong p-4">
-      <p className="text-sm font-medium text-body">
-        {hasImage ? "Remplacer l'image d'en-tête" : "Téléverser une image d'en-tête"}
-      </p>
-      <p className="mt-1 text-xs text-muted">
-        PNG, JPEG ou WebP, 2 Mo maximum. Prévoyez une bande large — elle est
-        placée en haut de page, à la largeur du document.
-      </p>
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <input
-          type="file"
-          name="letterheadImage"
-          accept="image/png,image/jpeg,image/webp"
-          form="letterhead-upload"
-          className="text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-canvas file:px-3 file:py-2 file:text-sm file:font-medium file:text-body"
+    <form action={action}>
+      <Card>
+        <CardHeader
+          title="Votre fiche praticien"
+          subtitle="Reprise sur les devis et les documents signés."
         />
-        <Button type="submit" form="letterhead-upload" variant="outline" size="sm" disabled={pending}>
-          {pending ? "Envoi…" : "Envoyer"}
-        </Button>
-      </div>
-      {state.status === "error" ? (
-        <p role="alert" className="mt-2 text-xs font-semibold text-danger">
-          {state.message}
-        </p>
+        <div className="space-y-5 p-5">
+          {missingRpps ? (
+            <p className="rounded-md bg-caution-soft px-3.5 py-3 text-sm leading-relaxed text-caution">
+              <span className="font-semibold">Identifiant manquant.</span> Le devis
+              conventionnel dentaire l'exige (arrêté du 31 octobre 2020) : sans lui,
+              l'enregistrement d'un devis est refusé.
+            </p>
+          ) : null}
+
+          <Field label="Nom affiché" htmlFor="fullName" required>
+            <input
+              id="fullName"
+              name="fullName"
+              required
+              defaultValue={values.fullName}
+              className={inputClass}
+            />
+          </Field>
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field
+              label="Identifiant RPPS ou ADELI"
+              htmlFor="rpps"
+              hint="11 chiffres pour un RPPS, 9 pour un ADELI."
+            >
+              <input
+                id="rpps"
+                name="rpps"
+                inputMode="numeric"
+                defaultValue={values.rpps ?? ""}
+                placeholder="10001234567"
+                className={`${inputClass} tabular`}
+              />
+            </Field>
+            <Field label="Spécialité affichée" htmlFor="specialityLabel">
+              <input
+                id="specialityLabel"
+                name="specialityLabel"
+                defaultValue={values.specialityLabel ?? ""}
+                placeholder="Chirurgien-dentiste"
+                className={inputClass}
+              />
+            </Field>
+          </div>
+
+          <FormFooter
+            pending={pending}
+            label="Enregistrer ma fiche"
+            saved={state.status === "saved"}
+            error={state.status === "error" ? state.message : null}
+          />
+        </div>
+      </Card>
+    </form>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+function TenantCard({
+  tenant,
+  mode,
+  onMode,
+  blocks,
+  onBlocks,
+  primary,
+  onPrimary,
+}: {
+  tenant: TenantSelf;
+  mode: string;
+  onMode: (value: "none" | "text" | "image") => void;
+  blocks: LetterheadBlock[];
+  onBlocks: (value: LetterheadBlock[]) => void;
+  primary: string;
+  onPrimary: (value: string) => void;
+}) {
+  const [state, action, pending] = useActionState(saveTenantSettings, idleSettings);
+
+  return (
+    <form action={action} className="space-y-6">
+      <Card>
+        <CardHeader
+          title="Identité du cabinet"
+          subtitle="Ces mentions figurent sur les devis et les documents signés."
+        />
+        <div className="space-y-5 p-5">
+          <Field label="Nom du cabinet" htmlFor="name" required>
+            <input
+              id="name"
+              name="name"
+              required
+              defaultValue={tenant.name}
+              className={inputClass}
+            />
+          </Field>
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label="Raison sociale" htmlFor="legalName">
+              <input
+                id="legalName"
+                name="legalName"
+                defaultValue={tenant.legalName ?? ""}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="SIRET" htmlFor="siret">
+              <input
+                id="siret"
+                name="siret"
+                inputMode="numeric"
+                defaultValue={tenant.siret ?? ""}
+                className={`${inputClass} tabular`}
+              />
+            </Field>
+          </div>
+
+          <Field label="Adresse" htmlFor="street">
+            <input
+              id="street"
+              name="street"
+              defaultValue={tenant.address.street ?? ""}
+              className={inputClass}
+            />
+          </Field>
+
+          {/* Deux colonnes, pas trois : à trois, « Code postal » et « Téléphone »
+              se tassent sous 1100 px et les libellés passent sous les champs. */}
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label="Code postal" htmlFor="postalCode">
+              <input
+                id="postalCode"
+                name="postalCode"
+                inputMode="numeric"
+                defaultValue={tenant.address.postalCode ?? ""}
+                className={`${inputClass} tabular`}
+              />
+            </Field>
+            <Field label="Ville" htmlFor="city">
+              <input
+                id="city"
+                name="city"
+                defaultValue={tenant.address.city ?? ""}
+                className={inputClass}
+              />
+            </Field>
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label="Téléphone" htmlFor="phone">
+              <input
+                id="phone"
+                name="phone"
+                type="tel"
+                defaultValue={tenant.address.phone ?? ""}
+                className={inputClass}
+              />
+            </Field>
+            <Field
+              label="FINESS"
+              htmlFor="finess"
+              hint="Pour les structures qui en disposent."
+            >
+              <input
+                id="finess"
+                name="finess"
+                defaultValue={tenant.finess ?? ""}
+                className={`${inputClass} tabular`}
+              />
+            </Field>
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="En-tête des documents"
+          subtitle="Un bloc de texte, ou votre papier à en-tête scanné."
+        />
+        <div className="space-y-5 p-5">
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ["text", "Texte"],
+                ["image", "Image"],
+                ["none", "Aucun"],
+              ] as const
+            ).map(([value, label]) => (
+              <label
+                key={value}
+                className={`cursor-pointer rounded-xl border px-4 py-2 text-sm font-medium transition ${
+                  mode === value
+                    ? "border-brand-600 bg-brand-50 text-brand-700"
+                    : "border-line text-muted hover:border-line-strong"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="letterheadMode"
+                  value={value}
+                  checked={mode === value}
+                  onChange={() => onMode(value)}
+                  className="sr-only"
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+
+          {mode === "text" ? (
+            <BlockEditor blocks={blocks} onChange={onBlocks} />
+          ) : null}
+          <input
+            type="hidden"
+            name="letterheadBlocks"
+            value={JSON.stringify(blocks)}
+          />
+
+          {mode === "image" ? (
+            <p className="text-sm leading-relaxed text-muted">
+              L'envoi de l'image se fait dans le bloc ci-dessous, séparément.
+            </p>
+          ) : null}
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Couleurs et expéditeur"
+          subtitle="Le portail patient et les emails reprennent ces éléments."
+        />
+        <div className="space-y-5 p-5">
+          <Field label="Couleur principale" htmlFor="primaryColor">
+            <div className="flex items-center gap-3">
+              <input
+                id="primaryColor"
+                name="primaryColor"
+                type="color"
+                value={primary}
+                onChange={(event) => onPrimary(event.target.value)}
+                className="h-11 w-16 shrink-0 cursor-pointer rounded-lg border border-line-strong"
+              />
+              <span className="tabular text-sm text-muted">{primary}</span>
+            </div>
+          </Field>
+
+          <Field
+            label="Nom d'expéditeur"
+            htmlFor="senderName"
+            hint="Affiché au patient. L'adresse d'envoi reste celle de Ryla, sans quoi les messages n'arriveraient pas."
+          >
+            <input
+              id="senderName"
+              name="senderName"
+              defaultValue={tenant.branding.senderName ?? tenant.name}
+              className={inputClass}
+            />
+          </Field>
+
+          <input
+            type="hidden"
+            name="accentColor"
+            value={tenant.branding.accentColor ?? "#EA580C"}
+          />
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Mentions légales et DPO"
+          subtitle="Le cabinet est responsable de traitement ; Ryla n'est que sous-traitant. Ces mentions sont les vôtres."
+        />
+        <div className="space-y-5 p-5">
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label="Contact DPO — nom" htmlFor="dpoName">
+              <input
+                id="dpoName"
+                name="dpoName"
+                defaultValue={tenant.dpoContact.name ?? ""}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Contact DPO — email" htmlFor="dpoEmail">
+              <input
+                id="dpoEmail"
+                name="dpoEmail"
+                type="email"
+                defaultValue={tenant.dpoContact.email ?? ""}
+                className={inputClass}
+              />
+            </Field>
+          </div>
+
+          <Field
+            label="Mentions légales"
+            htmlFor="legalNotice"
+            hint="Reprises au bas des documents signés et sur le portail patient."
+          >
+            <textarea
+              id="legalNotice"
+              name="legalNotice"
+              rows={4}
+              defaultValue={tenant.legalNotice ?? ""}
+              className={inputClass}
+            />
+          </Field>
+
+          <FormFooter
+            pending={pending}
+            label="Enregistrer les réglages du cabinet"
+            saved={state.status === "saved"}
+            error={state.status === "error" ? state.message : null}
+          />
+        </div>
+      </Card>
+    </form>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+function LetterheadUpload({ hasImage }: { hasImage: boolean }) {
+  const [state, action, pending] = useActionState(saveLetterhead, idleLetterhead);
+
+  return (
+    <form action={action}>
+      <Card>
+        <CardHeader
+          title="Image d'en-tête"
+          subtitle="PNG, JPEG ou WebP, 2 Mo maximum."
+        />
+        <div className="space-y-4 p-5">
+          <p className="text-sm leading-relaxed text-muted">
+            {hasImage
+              ? "Une image est déjà en place. En envoyer une nouvelle la remplace."
+              : "Prévoyez une bande large : elle est placée en haut de page, à la largeur du document."}
+          </p>
+
+          <input
+            type="file"
+            name="letterheadImage"
+            accept="image/png,image/jpeg,image/webp"
+            aria-label="Image d'en-tête"
+            className="block w-full text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-canvas file:px-3.5 file:py-2.5 file:text-sm file:font-medium file:text-body"
+          />
+
+          <FormFooter
+            pending={pending}
+            label="Envoyer l'image"
+            pendingLabel="Envoi…"
+            saved={state.status === "saved"}
+            savedLabel="Image enregistrée — rechargez pour la voir dans l'aperçu."
+            error={state.status === "error" ? state.message : null}
+          />
+        </div>
+      </Card>
+    </form>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+/**
+ * Éditeur d'en-tête, ligne par ligne.
+ *
+ * Trois tailles, gras, trois alignements — et rien de plus. C'est exactement
+ * ce que pdf-lib sait rendre avec les polices standard. Offrir davantage à la
+ * saisie donnerait un aperçu qui ne ressemble pas au document imprimé, ce qui
+ * est pire que pas de mise en forme du tout sur une pièce que le patient
+ * conserve.
+ */
+function BlockEditor({
+  blocks,
+  onChange,
+}: {
+  blocks: LetterheadBlock[];
+  onChange: (value: LetterheadBlock[]) => void;
+}) {
+  const patch = (index: number, changes: Partial<LetterheadBlock>) =>
+    onChange(blocks.map((block, i) => (i === index ? { ...block, ...changes } : block)));
+
+  const move = (index: number, delta: number) => {
+    const target = index + delta;
+    if (target < 0 || target >= blocks.length) return;
+    const next = [...blocks];
+    const [moved] = next.splice(index, 1);
+    next.splice(target, 0, moved!);
+    onChange(next);
+  };
+
+  return (
+    <div className="space-y-3">
+      {blocks.map((block, index) => (
+        <div key={index} className="rounded-xl border border-line p-3">
+          <input
+            value={block.text}
+            onChange={(event) => patch(index, { text: event.target.value })}
+            aria-label={`Ligne ${index + 1} de l'en-tête`}
+            className={inputClass}
+          />
+
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <Toggle
+              active={block.bold === true}
+              onClick={() => patch(index, { bold: !block.bold })}
+              label="Gras"
+            >
+              <span className="font-bold">G</span>
+            </Toggle>
+
+            <select
+              value={block.size ?? "normal"}
+              onChange={(event) =>
+                patch(index, { size: event.target.value as LetterheadBlock["size"] })
+              }
+              aria-label={`Taille de la ligne ${index + 1}`}
+              className="rounded-lg border border-line-strong bg-surface px-2.5 py-1.5 text-sm text-body"
+            >
+              <option value="title">Titre</option>
+              <option value="normal">Normal</option>
+              <option value="small">Petit</option>
+            </select>
+
+            <div className="flex gap-1">
+              {(
+                [
+                  ["left", "Gauche", "⌐"],
+                  ["center", "Centré", "≡"],
+                  ["right", "Droite", "¬"],
+                ] as const
+              ).map(([value, label, glyph]) => (
+                <Toggle
+                  key={value}
+                  active={(block.align ?? "left") === value}
+                  onClick={() => patch(index, { align: value })}
+                  label={label}
+                >
+                  {glyph}
+                </Toggle>
+              ))}
+            </div>
+
+            <div className="ml-auto flex items-center gap-1">
+              <Toggle
+                active={false}
+                onClick={() => move(index, -1)}
+                label="Monter"
+                disabled={index === 0}
+              >
+                ↑
+              </Toggle>
+              <Toggle
+                active={false}
+                onClick={() => move(index, 1)}
+                label="Descendre"
+                disabled={index === blocks.length - 1}
+              >
+                ↓
+              </Toggle>
+              <button
+                type="button"
+                onClick={() => onChange(blocks.filter((_, i) => i !== index))}
+                className="rounded-lg px-2 py-1.5 text-xs font-semibold text-muted transition hover:text-danger"
+              >
+                Retirer
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() =>
+          onChange([...blocks, { text: "", size: "normal", align: "left" }])
+        }
+      >
+        Ajouter une ligne
+      </Button>
+    </div>
+  );
+}
+
+function Toggle({
+  active,
+  onClick,
+  label,
+  disabled,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      aria-label={label}
+      aria-pressed={active}
+      className={`flex size-8 items-center justify-center rounded-lg border text-sm transition disabled:opacity-30 ${
+        active
+          ? "border-brand-600 bg-brand-50 text-brand-700"
+          : "border-line text-muted hover:border-line-strong"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function FormFooter({
+  pending,
+  label,
+  pendingLabel = "Enregistrement…",
+  saved,
+  savedLabel = "Enregistré",
+  error,
+}: {
+  pending: boolean;
+  label: string;
+  pendingLabel?: string;
+  saved: boolean;
+  savedLabel?: string;
+  error: string | null;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-5">
+      <Button type="submit" disabled={pending}>
+        {pending ? pendingLabel : label}
+      </Button>
+      {saved ? (
+        <span className="flex items-center gap-1.5 text-sm font-semibold text-positive">
+          <IconCheck className="size-4" />
+          {savedLabel}
+        </span>
       ) : null}
-      {state.status === "saved" ? (
-        <p className="mt-2 text-xs font-semibold text-positive">
-          Image enregistrée. Rechargez pour la voir dans l'aperçu.
-        </p>
+      {error ? (
+        <span
+          role="alert"
+          className="flex items-start gap-1.5 text-sm font-semibold text-danger"
+        >
+          <IconAlert className="mt-0.5 size-4 shrink-0" />
+          {error}
+        </span>
       ) : null}
-      <form id="letterhead-upload" action={formAction} />
     </div>
   );
 }
 
 function LetterheadPreview({
   mode,
-  text,
+  blocks,
   primary,
   hasImage,
+  practitioner,
 }: {
   mode: string;
-  text: string;
+  blocks: LetterheadBlock[];
   primary: string;
   hasImage: boolean;
+  practitioner: PractitionerValues;
 }) {
   return (
     <Card>
       <CardHeader title="Aperçu" subtitle="Haut d'un devis, à l'échelle." />
       <div className="p-5">
-        <div className="rounded-lg border border-line bg-white p-5 shadow-tile">
+        <div className="overflow-hidden rounded-lg border border-line bg-white p-5 shadow-tile">
           <div className="h-1 w-full rounded-full" style={{ background: primary }} />
 
-          <div className="mt-4 min-h-[92px]">
+          <div className="mt-4 min-h-20">
             {mode === "image" ? (
               hasImage ? (
                 // Image privée servie par une route authentifiée : `next/image`
-                // ne saurait pas l'optimiser, et n'a rien à y gagner ici.
+                // ne saurait pas l'optimiser et n'a rien à y gagner ici.
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src="/api/branding/letterhead"
@@ -371,14 +687,35 @@ function LetterheadPreview({
                   className="max-h-28 w-full object-contain object-left"
                 />
               ) : (
-                <p className="text-xs text-faint">
-                  Aucune image envoyée pour l'instant.
-                </p>
+                <p className="text-xs text-faint">Aucune image envoyée pour l'instant.</p>
               )
             ) : mode === "text" ? (
-              <p className="text-xs leading-relaxed whitespace-pre-line text-body">
-                {text.trim() === "" ? "Bloc d'en-tête vide." : text}
-              </p>
+              blocks.length === 0 ? (
+                <p className="text-xs text-faint">Bloc d'en-tête vide.</p>
+              ) : (
+                <div className="space-y-0.5">
+                  {blocks.map((block, index) => (
+                    <p
+                      key={index}
+                      className={`wrap-break-word text-body ${
+                        block.size === "title"
+                          ? "text-[15px]"
+                          : block.size === "small"
+                            ? "text-[10px]"
+                            : "text-xs"
+                      } ${block.bold ? "font-bold" : ""} ${
+                        block.align === "center"
+                          ? "text-center"
+                          : block.align === "right"
+                            ? "text-right"
+                            : "text-left"
+                      }`}
+                    >
+                      {block.text}
+                    </p>
+                  ))}
+                </div>
+              )
             ) : (
               <p className="text-xs text-faint">
                 Sans en-tête : le devis commence directement par son titre.
@@ -388,9 +725,19 @@ function LetterheadPreview({
 
           <div className="mt-4 border-t border-line pt-3">
             <p className="text-[13px] font-bold text-body">DEVIS</p>
-            <p className="mt-0.5 text-[11px] text-faint">
-              Nº D-2026-0001 · établi le {new Date().toLocaleDateString("fr-FR")}
+            <p className="tabular mt-0.5 text-[11px] text-faint">
+              Nº D-{new Date().getFullYear()}-0001 · établi le{" "}
+              {new Date().toLocaleDateString("fr-FR")}
             </p>
+            <p className="mt-2 text-[11px] text-faint">
+              {practitioner.fullName}
+              {practitioner.rpps ? ` · RPPS ${practitioner.rpps}` : null}
+            </p>
+            {!practitioner.rpps ? (
+              <p className="mt-1 text-[11px] font-semibold text-flame-700">
+                Identifiant praticien manquant — le devis conventionnel sera refusé.
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -403,15 +750,23 @@ function LetterheadPreview({
   );
 }
 
-/** Bloc de départ, composé depuis ce que le cabinet a déjà renseigné. */
-function defaultLetterhead(tenant: TenantSelf): string {
-  return [
-    tenant.legalName || tenant.name,
-    tenant.address.street,
-    [tenant.address.postalCode, tenant.address.city].filter(Boolean).join(" "),
-    tenant.address.phone,
-    tenant.siret ? `SIRET ${tenant.siret}` : null,
-  ]
-    .filter((line) => line && String(line).trim() !== "")
-    .join("\n");
+/**
+ * En-tête de départ, composé depuis ce que le cabinet a déjà renseigné.
+ *
+ * La raison sociale en titre centré, le reste en dessous : c'est la mise en
+ * page que font les cabinets à la main, autant la proposer d'emblée.
+ */
+function defaultLetterhead(tenant: TenantSelf): LetterheadBlock[] {
+  const lines: LetterheadBlock[] = [
+    { text: tenant.legalName || tenant.name, bold: true, size: "title", align: "center" },
+    { text: tenant.address.street ?? "", size: "normal", align: "center" },
+    {
+      text: [tenant.address.postalCode, tenant.address.city].filter(Boolean).join(" "),
+      size: "normal",
+      align: "center",
+    },
+    { text: tenant.address.phone ?? "", size: "small", align: "center" },
+    { text: tenant.siret ? `SIRET ${tenant.siret}` : "", size: "small", align: "center" },
+  ];
+  return lines.filter((block) => block.text.trim() !== "");
 }

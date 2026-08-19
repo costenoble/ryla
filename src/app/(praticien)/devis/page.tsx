@@ -50,7 +50,14 @@ export default async function DevisPage() {
                   inReflection > 0 ? ` · ${inReflection} en délai de réflexion` : ""
                 }`
           }
-          action={<ButtonLink href="/devis/nouveau">Nouveau devis</ButtonLink>}
+          action={
+            <div className="flex flex-wrap gap-2.5">
+              <ButtonLink href="/devis/importer" variant="outline">
+                Importer un devis
+              </ButtonLink>
+              <ButtonLink href="/devis/nouveau">Nouveau devis</ButtonLink>
+            </div>
+          }
         />
       </FadeUp>
 
@@ -59,8 +66,15 @@ export default async function DevisPage() {
           <EmptyState
             icon={<IconReceipt className="size-5" />}
             title="Aucun devis pour l'instant"
-            description="Composez un devis à partir du référentiel CCAM / NGAP, avec calcul du reste à charge et aperçu."
-            action={<ButtonLink href="/devis/nouveau">Créer un devis</ButtonLink>}
+            description="Composez-en un à partir du référentiel CCAM / NGAP, ou importez celui de votre logiciel métier pour le faire signer."
+            action={
+              <div className="flex flex-wrap justify-center gap-2.5">
+                <ButtonLink href="/devis/nouveau">Créer un devis</ButtonLink>
+                <ButtonLink href="/devis/importer" variant="outline">
+                  Importer un devis
+                </ButtonLink>
+              </div>
+            }
           />
         </FadeUp>
       ) : (

@@ -486,16 +486,29 @@ function LineRow({
               className={inputClass}
             />
           </Field>
-          <Field label="Panier de soins" htmlFor={`${line.key}-basket`}>
+          {/* Signalé à la saisie, pas au moment d'enregistrer : le message du
+              serveur arrivait après coup, sans dire quelle ligne corriger. */}
+          <Field
+            label="Panier de soins"
+            htmlFor={`${line.key}-basket`}
+            required
+            error={
+              line.careBasket === ""
+                ? "Mention obligatoire sur un devis conventionnel."
+                : undefined
+            }
+          >
             <select
               id={`${line.key}-basket`}
               value={line.careBasket}
               onChange={(event) =>
                 onChange({ careBasket: event.target.value as CareBasket | "" })
               }
-              className={inputClass}
+              className={`${inputClass} ${
+                line.careBasket === "" ? "border-flame-400" : ""
+              }`}
             >
-              <option value="">À préciser</option>
+              <option value="">À préciser…</option>
               {Object.entries(CARE_BASKET_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}

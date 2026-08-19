@@ -1,5 +1,9 @@
 import { withPrivileged } from "./db";
 import { env } from "./env";
+import { letterheadBlocks, type LetterheadBlock } from "./letterhead";
+
+// Réexportés pour les appelants serveur qui lisent déjà `TenantBranding` ici.
+export { letterheadBlocks, type LetterheadBlock };
 
 /**
  * Résolution du cabinet.
@@ -23,12 +27,23 @@ export type TenantBranding = {
    * Obliger les seconds à fabriquer une image serait une friction inutile.
    */
   letterheadMode?: "none" | "text" | "image";
-  /** Bloc libre : raison sociale, adresse, téléphone, n° RPPS… */
+  /** Ancien format, une ligne par retour chariot. Migré à la lecture. */
   letterheadText?: string;
+  /**
+   * En-tête composé ligne par ligne.
+   *
+   * Volontairement pas un éditeur riche. Le PDF est rendu par pdf-lib avec les
+   * polices standard : gras, trois tailles et trois alignements sont exactement
+   * ce qu'il sait produire. Offrir davantage à la saisie donnerait un aperçu
+   * qui ne ressemble pas au document imprimé — pire que pas de mise en forme
+   * du tout sur une pièce que le patient conserve.
+   */
+  letterheadBlocks?: LetterheadBlock[];
   /** Clé dans le magasin de documents — l'image ne vit pas dans le jsonb. */
   letterheadImageKey?: string;
   letterheadImageType?: string;
 };
+
 
 export type TenantSummary = {
   id: string;

@@ -4,6 +4,7 @@ import { sha256Hex } from "./crypto";
 import { formatAnswer, formatDuration, formatTimestamp } from "./format";
 import { NON_ANSWERABLE_TYPES, type Answers, type FormDefinition } from "./form-schema";
 import type { ProofBundle } from "./proof";
+import type { LetterheadBlock } from "./letterhead";
 
 /**
  * Génération du document signé.
@@ -142,6 +143,46 @@ function write(
   layout.y -= options.gap ?? 0;
 }
 
+/** Correspondance des trois tailles de l'éditeur d'en-tête. */
+const LETTERHEAD_SIZES = { title: 14, normal: 9.5, small: 7.5 } as const;
+
+/**
+ * Écrit une ligne d'en-tête avec son alignement.
+ *
+ * `write()` ne sait qu'aligner à gauche : centrer demande la largeur réelle du
+ * texte, donc la police et la taille. Les trois alignements et les trois
+ * tailles sont exactement ce que l'éditeur des réglages propose — l'aperçu et
+ * le PDF ne peuvent donc pas diverger.
+ */
+function writeAligned(layout: Layout, block: LetterheadBlock): void {
+  const size = LETTERHEAD_SIZES[block.size ?? "normal"];
+  const font = block.bold ? layout.bold : layout.regular;
+  const maxWidth = A4.width - MARGIN * 2;
+  const lineHeight = size * 1.35;
+
+  for (const line of wrap(block.text, font, size, maxWidth)) {
+    ensureSpace(layout, lineHeight);
+    if (line) {
+      const width = font.widthOfTextAtSize(line, size);
+      const x =
+        block.align === "center"
+          ? MARGIN + (maxWidth - width) / 2
+          : block.align === "right"
+            ? A4.width - MARGIN - width
+            : MARGIN;
+
+      layout.page.drawText(line, {
+        x,
+        y: layout.y,
+        size,
+        font,
+        color: block.size === "title" ? layout.brand : rgb(0.25, 0.28, 0.33),
+      });
+    }
+    layout.y -= lineHeight;
+  }
+}
+
 function rule(layout: Layout, color = rgb(0.85, 0.87, 0.9)): void {
   ensureSpace(layout, 10);
   layout.page.drawLine({
@@ -170,6 +211,8 @@ export type RenderParams = {
     legalNotice?: string | null;
     address?: string | null;
     brandColor?: string | null;
+    /** En-tête composé dans les réglages. À défaut, nom et adresse suffisent. */
+    letterhead?: LetterheadBlock[] | null;
   };
   patient: {
     displayName: string;
@@ -188,6 +231,14 @@ export type RenderParams = {
     imagePng?: Uint8Array | null;
   } | null;
   proof?: ProofBundle | null;
+  /**
+   * Document produit hors de Ryla (devis du logiciel métier) à placer en tête.
+   *
+   * Ses pages sont recopiées telles quelles, sans pied de page ni surcharge :
+   * c'est la pièce du cabinet, elle doit rester identique à l'octet près à ce
+   * que le patient a lu. Ryla n'ajoute que ce qui suit.
+   */
+  attachment?: Uint8Array | null;
 };
 
 export async function renderSubmissionPdf(
@@ -198,6 +249,27 @@ export async function renderSubmissionPdf(
   doc.setProducer("Ryla");
   doc.setCreator("Ryla");
   doc.setCreationDate(new Date());
+
+  // La pièce importée passe en premier : le patient qui rouvre le document
+  // signé doit tomber sur son devis, pas sur une page de garde Ryla.
+  let attachedPages = 0;
+  if (params.attachment) {
+    try {
+      const source = await PDFDocument.load(params.attachment, {
+        // Un devis exporté par un logiciel métier est parfois protégé contre
+        // la copie. On l'ignore : on ne le modifie pas, on l'annexe.
+        ignoreEncryption: true,
+      });
+      const copied = await doc.copyPages(source, source.getPageIndices());
+      for (const page of copied) doc.addPage(page);
+      attachedPages = copied.length;
+    } catch {
+      // Un PDF illisible ne doit pas empêcher la signature d'aboutir : le
+      // faisceau de preuves scelle de toute façon l'empreinte de la pièce
+      // d'origine, qui reste consultable séparément.
+      attachedPages = 0;
+    }
+  }
 
   const layout: Layout = {
     doc,
@@ -210,9 +282,18 @@ export async function renderSubmissionPdf(
   };
 
   // --- En-tête -------------------------------------------------------------
-  write(layout, params.tenant.name, { font: layout.bold, size: 13, color: layout.brand });
-  if (params.tenant.address) {
-    write(layout, params.tenant.address, { size: 8, color: rgb(0.42, 0.45, 0.5) });
+  // L'en-tête composé dans les réglages prime : c'est ce que le praticien a
+  // relu dans l'aperçu, et le document imprimé doit lui ressembler.
+  if (params.tenant.letterhead?.length) {
+    for (const block of params.tenant.letterhead) {
+      writeAligned(layout, block);
+    }
+    layout.y -= 4;
+  } else {
+    write(layout, params.tenant.name, { font: layout.bold, size: 13, color: layout.brand });
+    if (params.tenant.address) {
+      write(layout, params.tenant.address, { size: 8, color: rgb(0.42, 0.45, 0.5) });
+    }
   }
   layout.y -= 6;
   write(layout, params.definition.title, { font: layout.bold, size: 15 });
@@ -371,6 +452,25 @@ export async function renderSubmissionPdf(
     write(layout, `Empreinte des réponses : ${proof.answers.hash}`, { size: 8 });
     write(layout, `Nombre de réponses enregistrées : ${proof.answers.count}`, { size: 8, gap: 4 });
 
+    if (proof.attachment) {
+      heading(layout, "Pièce annexée");
+      write(
+        layout,
+        "Le document signé reproduit une pièce établie hors de Ryla, reprise " +
+          "sans modification en tête du présent PDF.",
+        { font: layout.italic, size: 8, color: rgb(0.45, 0.48, 0.53), gap: 3 },
+      );
+      write(layout, `Fichier : ${proof.attachment.filename}`, { size: 8.5 });
+      if (proof.attachment.source) {
+        write(layout, `Origine déclarée : ${proof.attachment.source}`, { size: 8.5 });
+      }
+      write(layout, `Taille : ${proof.attachment.byteSize} octets`, { size: 8.5 });
+      write(layout, `Empreinte de la pièce : ${proof.attachment.sha256}`, {
+        size: 8,
+        gap: 4,
+      });
+    }
+
     heading(layout, "Horodatage");
     for (const [label, key] of [
       ["Envoi au patient", "sentAt"],
@@ -431,8 +531,11 @@ export async function renderSubmissionPdf(
   }
 
   // --- Pieds de page -------------------------------------------------------
+  // Les pages importées en sont exemptes : écrire par-dessus le devis d'un
+  // cabinet, c'est le modifier, et c'est précisément ce qu'on s'interdit.
   const pages = doc.getPages();
   pages.forEach((page, index) => {
+    if (index < attachedPages) return;
     page.drawText(
       sanitize(`${params.tenant.name} — ${params.definition.title}`),
       { x: MARGIN, y: 28, size: 7, font: layout.regular, color: rgb(0.55, 0.58, 0.62) },

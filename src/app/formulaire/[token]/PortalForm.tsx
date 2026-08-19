@@ -23,11 +23,19 @@ type Props = {
   definition: FormDefinition;
   initialAnswers: Answers;
   tenantName: string;
+  /** Devis importé du logiciel métier, à lire avant de signer. */
+  attachment?: { filename: string } | null;
 };
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
-export function PortalForm({ token, definition, initialAnswers, tenantName }: Props) {
+export function PortalForm({
+  token,
+  definition,
+  initialAnswers,
+  tenantName,
+  attachment,
+}: Props) {
   const [answers, setAnswers] = useState<Answers>(initialAnswers);
   const [stepIndex, setStepIndex] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -293,6 +301,13 @@ export function PortalForm({ token, definition, initialAnswers, tenantName }: Pr
               </p>
             ) : null}
 
+            {/* La pièce n'apparaît que sur la première étape : c'est là qu'on
+                demande au patient de la lire, et le compteur de temps de cette
+                section est précisément ce qui l'atteste. */}
+            {attachment && stepIndex === 0 ? (
+              <AttachmentViewer token={token} filename={attachment.filename} />
+            ) : null}
+
             <div className="mt-6 space-y-5">
               {currentSection.fields.map((field) => (
                 <FieldInput
@@ -343,6 +358,52 @@ export function PortalForm({ token, definition, initialAnswers, tenantName }: Pr
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Affichage du devis importé.
+ *
+ * `<object>` plutôt qu'`<iframe>` : il permet un contenu de repli quand le
+ * navigateur ne sait pas afficher un PDF en ligne — ce qui reste courant sur
+ * mobile. Sans ce repli, le patient verrait un cadre vide et signerait un
+ * document qu'il n'a pas pu lire, ce qui viderait la preuve de son sens.
+ */
+function AttachmentViewer({ token, filename }: { token: string; filename: string }) {
+  const url = `/api/p/${token}/piece`;
+
+  return (
+    <div className="mt-5">
+      <object
+        data={url}
+        type="application/pdf"
+        className="h-[60vh] min-h-80 w-full rounded-xl border border-line bg-canvas"
+        aria-label={`Devis ${filename}`}
+      >
+        <div className="p-6 text-center">
+          <p className="text-sm text-muted">
+            Votre navigateur n'affiche pas les PDF directement.
+          </p>
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-3 inline-block rounded-xl brand-bg px-5 py-2.5 text-sm font-semibold text-white"
+          >
+            Ouvrir le devis
+          </a>
+        </div>
+      </object>
+
+      <a
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        className="mt-2 inline-block text-sm font-medium underline underline-offset-2 brand-text"
+      >
+        Ouvrir le devis dans un nouvel onglet
+      </a>
     </div>
   );
 }

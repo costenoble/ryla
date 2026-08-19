@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   IconDashboard,
-  IconFolder,
   IconUsers,
   IconReceipt,
   IconSettings,
@@ -31,9 +30,9 @@ type NavItem = {
 const ITEMS: NavItem[] = [
   { href: "/tableau-de-bord", label: "Tableau de bord", Icon: IconDashboard },
   { href: "/patients", label: "Patients", Icon: IconUsers },
-  // La liste des dossiers existait sans jamais être liée : on y arrivait par
-  // une fiche patient ou pas du tout.
-  { href: "/dossiers", label: "Dossiers", Icon: IconFolder },
+  // Pas d'entrée « Dossiers » : les documents d'un patient se lisent depuis sa
+  // fiche, et une liste globale de dossiers ne correspond à aucune question
+  // que se pose un praticien devant son écran.
   { href: "/devis", label: "Devis", Icon: IconReceipt },
   { href: "/modeles", label: "Modèles", Icon: IconTemplate },
   { href: "/parametres", label: "Réglages", Icon: IconSettings },

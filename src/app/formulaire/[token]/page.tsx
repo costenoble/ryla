@@ -161,7 +161,16 @@ export default async function PortalPage({
     const answers =
       submission.status === "signed" ? {} : await readAnswers(tx, tenantId, submissionId);
 
-    return { submission, tenant, answers };
+    // Devis importé du logiciel métier : c'est lui que le patient doit lire,
+    // le formulaire ne porte que les déclarations.
+    const [attachment] = await tx<{ filename: string }[]>`
+      select d.filename
+      from submissions s
+      join documents d on d.id = s.source_document_id
+      where s.id = ${submissionId}
+    `;
+
+    return { submission, tenant, answers, attachment: attachment ?? null };
   });
 
   if (!data) {
@@ -204,6 +213,7 @@ export default async function PortalPage({
         definition={data.submission.definition}
         initialAnswers={data.answers}
         tenantName={data.tenant.name}
+        attachment={data.attachment}
       />
     </Shell>
   );

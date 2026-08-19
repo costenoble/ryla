@@ -77,8 +77,23 @@ export type ProofInput = {
     destinationHint: string;
     verifiedAt: Date;
   } | null;
+  /**
+   * Pièce produite hors de Ryla et soumise à la signature (devis du logiciel
+   * métier). Son empreinte est ce qui permet de démontrer, plus tard, que le
+   * document annexé est bien celui qui a été affiché — et qu'il n'a pas été
+   * remplacé depuis.
+   */
+  attachment?: ProofAttachment | null;
   /** Tête de la chaîne d'audit au moment de la signature. */
   auditChainHead: string | null;
+};
+
+export type ProofAttachment = {
+  filename: string;
+  sha256: string;
+  byteSize: number;
+  /** D'où vient la pièce, tel que déclaré par le cabinet. */
+  source: string | null;
 };
 
 /**
@@ -106,6 +121,7 @@ export type ProofBundle = {
     totalMs: number;
   };
   otp: { channel: string; destinationHint: string; verifiedAt: string } | null;
+  attachment: ProofAttachment | null;
   auditChainHead: string | null;
   /** Empreinte du bundle lui-même, calculée sur tout ce qui précède. */
   hash: string;
@@ -145,6 +161,7 @@ export function buildProofBundle(input: ProofInput): ProofBundle {
           verifiedAt: input.otp.verifiedAt.toISOString(),
         }
       : null,
+    attachment: input.attachment ?? null,
     auditChainHead: input.auditChainHead,
   };
 
