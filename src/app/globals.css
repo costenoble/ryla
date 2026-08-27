@@ -299,45 +299,158 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
-   Écran d'ouverture de la vitrine
+   Rideau d'ouverture de la vitrine
 
-   Entièrement en CSS, rendu par le serveur : une version pilotée en JavaScript
-   afficherait d'abord la page, puis le voile par-dessus une fois hydratée —
-   soit exactement l'inverse de l'effet recherché. Ici le voile est déjà là au
-   premier pixel peint, et il s'efface tout seul.
+   Un rideau indigo qui s'ouvre en deux, la marque au centre de la fente. Tout
+   en CSS et rendu par le serveur : une version pilotée en JavaScript
+   afficherait d'abord la page, puis le rideau par-dessus une fois hydratée —
+   soit l'inverse de l'effet recherché.
 
-   `visibility: hidden` en fin d'animation, et non seulement `opacity: 0` : un
-   élément transparent reste cliquable et intercepterait les clics sur la page.
+   La séquence dure 2,2 s. C'est long pour une page ordinaire, court pour une
+   première impression, et ça ne se produit qu'à l'arrivée sur la vitrine.
+
+     0,00 → 0,70   le symbole grandit, son halo s'épanouit
+     0,45 → 1,05   le mot-clé se dévoile de la gauche vers la droite
+     0,75 → 1,25   la signature monte
+     1,40 → 1,70   la marque s'efface en s'éloignant
+     1,50 → 2,20   les deux pans s'écartent
    --------------------------------------------------------------------------- */
-@keyframes intro-veil {
-  0%, 40% { opacity: 1; visibility: visible; }
-  100% { opacity: 0; visibility: hidden; }
-}
-
-@keyframes intro-mark {
-  0% { opacity: 0; transform: scale(0.94); }
-  35% { opacity: 1; transform: scale(1); }
-  100% { opacity: 1; transform: scale(1); }
-}
-
 .intro-veil {
   position: fixed;
   inset: 0;
   z-index: 90;
-  display: grid;
-  place-items: center;
-  gap: 1.25rem;
-  align-content: center;
-  background: var(--color-canvas);
-  animation: intro-veil 1.5s var(--ease-out-expo) forwards;
+  overflow: hidden;
+  animation: intro-done 2.2s linear forwards;
+}
+
+/* Le conteneur disparaît à la fin. `visibility` et pas seulement `opacity` :
+   un élément transparent reste cliquable et intercepterait les clics. */
+@keyframes intro-done {
+  0%, 99% { visibility: visible; }
+  100% { visibility: hidden; }
+}
+
+.intro-half {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  /* Les deux pans partagent un seul dégradé, dimensionné à l'écran entier et
+     ancré chacun de son côté. Sans ça, chaque moitié recalcule le sien sur sa
+     propre hauteur et la jointure se voit comme un trait au milieu. */
+  background-size: 100vw 100vh;
+  background-repeat: no-repeat;
+  animation-duration: 0.7s;
+  animation-delay: 1.5s;
+  animation-timing-function: var(--ease-out-expo);
+  animation-fill-mode: both;
+}
+
+.intro-half--top {
+  top: 0;
+  height: 50%;
+  background-position: top left;
+  animation-name: intro-part-up;
+}
+
+.intro-half--bottom {
+  bottom: 0;
+  /* Un pixel de recouvrement : à hauteur impaire, deux moitiés exactes
+     laissent passer une ligne claire sur la page. */
+  height: calc(50% + 1px);
+  background-position: bottom left;
+  animation-name: intro-part-down;
+}
+
+@keyframes intro-part-up {
+  from { transform: translateY(0); }
+  to { transform: translateY(-100%); }
+}
+@keyframes intro-part-down {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
+
+/* --- La marque, au centre de la fente ------------------------------------- */
+.intro-brand {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  animation: intro-brand-out 0.3s var(--ease-out-expo) 1.4s both;
+}
+
+@keyframes intro-brand-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(1.08); }
 }
 
 .intro-mark {
-  animation: intro-mark 0.9s var(--ease-out-expo) both;
+  position: relative;
+  display: grid;
+  place-items: center;
+  animation: intro-mark-in 0.7s var(--ease-out-expo) both;
 }
 
-/* Un voile qui s'efface est une animation ; qui n'a jamais rien vu ne perd
-   rien. On le retire donc entièrement plutôt que de le faire disparaître. */
+@keyframes intro-mark-in {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Halo derrière le symbole : c'est lui qui donne l'impression de puissance,
+   plus que le mouvement du symbole lui-même. */
+.intro-mark::before {
+  content: "";
+  position: absolute;
+  width: 240px;
+  height: 240px;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    rgb(124 58 237 / 0.45) 0%,
+    rgb(249 115 22 / 0.18) 40%,
+    transparent 70%
+  );
+  animation: intro-halo 1.6s var(--ease-out-expo) both;
+}
+
+@keyframes intro-halo {
+  0% { opacity: 0; transform: scale(0.4); }
+  45% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0.55; transform: scale(1.25); }
+}
+
+/* Le mot-clé se découvre de la gauche vers la droite, comme s'il s'écrivait. */
+.intro-word {
+  font-size: 2.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: #fff;
+  animation: intro-word-in 0.6s var(--ease-out-expo) 0.45s both;
+}
+
+@keyframes intro-word-in {
+  from { clip-path: inset(0 100% 0 0); opacity: 0; }
+  to { clip-path: inset(0 0 0 0); opacity: 1; }
+}
+
+.intro-tag {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-ink-300);
+  animation: intro-tag-in 0.5s var(--ease-out-expo) 0.75s both;
+}
+
+@keyframes intro-tag-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Une ouverture de rideau est une animation, et rien d'autre : qui a demandé
+   qu'on la lui épargne ne perd aucune information en ne la voyant pas. */
 @media (prefers-reduced-motion: reduce) {
   .intro-veil {
     display: none;
