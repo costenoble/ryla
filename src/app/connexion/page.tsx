@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { IconLock, IconPen, IconShield } from "@/components/icons";
+import { IconArrowLeft, IconLock, IconPen, IconShield } from "@/components/icons";
 import { Logo } from "@/components/Logo";
 import { signupOpen } from "@/lib/actions/signup";
 import { currentHost, currentSession } from "@/lib/auth";
@@ -42,7 +43,9 @@ export default async function LoginPage() {
       {/* --- Panneau de marque : masqué sur petit écran, où il ne ferait que
               repousser le formulaire sous la ligne de flottaison. --------- */}
       <section className="ink-panel relative hidden overflow-hidden rounded-3xl p-10 shadow-ink lg:flex lg:w-[46%] lg:flex-col xl:p-12">
-        <Logo tone="light" size="lg" withTagline />
+        <Link href="/" aria-label="Retour à l'accueil" className="w-fit">
+          <Logo tone="light" size="lg" withTagline />
+        </Link>
 
         <div className="mt-auto">
           <h2 className="max-w-md text-[34px] leading-[1.15] font-bold tracking-tight text-white xl:text-[40px]">
@@ -75,10 +78,22 @@ export default async function LoginPage() {
       {/* --- Formulaire ---------------------------------------------------- */}
       <section className="flex flex-1 items-center justify-center px-5 py-12 sm:px-8">
         <div className="w-full max-w-sm">
-          <div className="mb-8 lg:hidden">
+          <Link href="/" className="mb-8 block lg:hidden">
             <Logo size="lg" withTagline />
-          </div>
+          </Link>
 
+          {/* Sur grand écran le logo du panneau de marque sert déjà de retour ;
+              ce lien-ci le double d'une formulation explicite, pour qui ne
+              devine pas qu'un logo est cliquable. */}
+          <Link
+            href="/"
+            className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-muted transition hover:text-body"
+          >
+            <IconArrowLeft className="size-4" />
+            Retour à l'accueil
+          </Link>
+
+          
           <h1 className="text-2xl font-bold tracking-tight text-body">Espace praticien</h1>
           <p className="mt-1.5 text-[15px] text-muted">
             Connectez-vous pour accéder aux dossiers de votre cabinet.

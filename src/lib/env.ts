@@ -147,15 +147,28 @@ export const env = {
     return process.env.RYLA_TENANT_PICKER === "on";
   },
   /**
-   * Code d'invitation exigé à l'inscription.
+   * Code d'invitation exigé à l'inscription, s'il y en a un.
    *
-   * Un formulaire public qui crée des espaces destinés à recevoir des données
-   * de santé n'a rien d'anodin. Sans cette variable, l'inscription en ligne est
-   * indisponible en production — échec fermé, comme le RLS. En développement
-   * elle reste ouverte, parce qu'on y crée des cabinets à la chaîne.
+   * Renseigné, il restreint la création de cabinet aux personnes à qui on l'a
+   * donné. Absent, l'inscription est simplement ouverte.
    */
   get signupCode() {
     return process.env.RYLA_SIGNUP_CODE ?? null;
+  },
+  /**
+   * Fermeture complète de l'inscription.
+   *
+   * L'inscription était fermée par défaut en production, ce qui partait d'une
+   * bonne intention — un formulaire créant des espaces destinés à des données
+   * de santé n'a rien d'anodin — mais produisait une vitrine dont le bouton
+   * principal renvoyait un 404. Une porte d'entrée cassée coûte plus cher que
+   * le risque qu'elle évitait, d'autant que le code d'invitation reste
+   * disponible pour restreindre l'accès sans tout fermer.
+   *
+   * `RYLA_SIGNUP=closed` referme entièrement la porte.
+   */
+  get signupClosed() {
+    return process.env.RYLA_SIGNUP === "closed";
   },
   /**
    * Exécution serverless : chaque instance est un processus court-vivant, et

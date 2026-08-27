@@ -19,12 +19,15 @@ import { resolveTenantBySlug } from "@/lib/tenant";
  * Jusqu'ici, ouvrir un cabinet demandait un script et un accès à la base. C'est
  * tenable pour une démonstration, pas pour un produit.
  *
- * L'inscription est **fermée par défaut**, et c'est le point important. Un
- * formulaire public qui crée des espaces destinés à recevoir des données de
- * santé n'a rien d'anodin : il faut un code d'invitation, défini par
- * `RYLA_SIGNUP_CODE`. Sans cette variable, l'inscription est simplement
- * indisponible en production — échec fermé, comme le RLS. En développement elle
- * reste ouverte, parce qu'on y crée des cabinets à la chaîne.
+ * L'inscription est ouverte, et restreignable de deux façons :
+ * `RYLA_SIGNUP_CODE` exige un code d'invitation, `RYLA_SIGNUP=closed` referme
+ * entièrement la porte.
+ *
+ * Elle était fermée par défaut en production. L'intention était bonne — un
+ * formulaire créant des espaces destinés à des données de santé n'a rien
+ * d'anodin — mais le résultat était une vitrine dont le bouton principal
+ * renvoyait un 404. Une porte d'entrée cassée coûte plus cher que le risque
+ * qu'elle évitait.
  *
  * Le mot de passe du praticien est haché en scrypt, et la clé de chiffrement du
  * cabinet est scellée avec la KEK du serveur. Si celle-ci change ensuite, les
@@ -49,7 +52,7 @@ export async function slugify(input: string): Promise<string> {
 }
 
 export async function signupOpen(): Promise<boolean> {
-  return Boolean(env.signupCode) || !env.isProduction;
+  return !env.signupClosed;
 }
 
 export async function createCabinet(
@@ -62,7 +65,7 @@ export async function createCabinet(
     return {
       status: "error",
       message:
-        "L'inscription en ligne n'est pas ouverte. Contactez Ryla pour faire créer votre cabinet.",
+        "L'inscription en ligne est fermée. Contactez Ryla pour faire créer votre cabinet.",
     };
   }
 

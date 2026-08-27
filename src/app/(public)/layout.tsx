@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
+import { signupOpen } from "@/lib/actions/signup";
 import { hasCertifiedHealthHost } from "@/lib/legal-entity";
 
 /**
@@ -28,7 +29,15 @@ export const metadata: Metadata = {
  * impose qu'ils soient accessibles depuis n'importe quel point du site, pas
  * seulement depuis l'accueil.
  */
-export default function PublicLayout({ children }: { children: React.ReactNode }) {
+export default async function PublicLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  // Sans ce contrôle, le bouton pointait vers /inscription même quand la page
+  // n'existait pas — un 404 depuis le bouton principal du site.
+  const canSignup = await signupOpen();
+
   return (
     <div className="flex min-h-dvh flex-col bg-canvas">
       <header className="sticky top-0 z-40 border-b border-line bg-canvas/85 backdrop-blur">
@@ -43,12 +52,14 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
             >
               Se connecter
             </Link>
-            <Link
-              href="/inscription"
-              className="rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-tile transition hover:bg-brand-700"
-            >
-              Créer un cabinet
-            </Link>
+            {canSignup ? (
+              <Link
+                href="/inscription"
+                className="rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-tile transition hover:bg-brand-700 hover:shadow-card"
+              >
+                Créer un cabinet
+              </Link>
+            ) : null}
           </nav>
         </div>
       </header>

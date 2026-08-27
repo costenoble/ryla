@@ -220,3 +220,41 @@ body {
     background: #fff;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Écran d'attente
+   
+   En CSS et non en framer-motion : ce composant s'affiche précisément quand le
+   JavaScript de la page n'est pas encore chargé.
+   --------------------------------------------------------------------------- */
+@keyframes splash-breathe {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.72; transform: scale(0.97); }
+}
+
+@keyframes splash-bounce {
+  0%, 80%, 100% { opacity: 0.25; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-4px); }
+}
+
+.splash-pulse {
+  display: inline-block;
+  animation: splash-breathe 1.9s var(--ease-out-expo) infinite;
+}
+
+.splash-dot {
+  display: inline-block;
+  animation: splash-bounce 1.2s ease-in-out infinite;
+}
+
+/* Le mouvement disparaît, le repère visuel reste : sans cette règle, l'écran
+   d'attente devient une page vide pour qui a désactivé les animations. */
+@media (prefers-reduced-motion: reduce) {
+  .splash-pulse,
+  .splash-dot {
+    animation: none;
+  }
+  .splash-dot {
+    opacity: 0.55;
+  }
+}
