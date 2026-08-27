@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
+import { TraceBorder } from "@/components/TraceBorder";
 import { signupOpen } from "@/lib/actions/signup";
 import { hasCertifiedHealthHost } from "@/lib/legal-entity";
 
@@ -48,8 +49,9 @@ export default async function PublicLayout({
           <nav className="flex items-center gap-1.5 sm:gap-3">
             <Link
               href="/connexion"
-              className="rounded-full px-3.5 py-2 text-sm font-semibold text-muted transition hover:text-body"
+              className="group relative rounded-full px-4 py-2 text-sm font-semibold text-muted transition hover:text-brand-700"
             >
+              <TraceBorder />
               Se connecter
             </Link>
             {canSignup ? (

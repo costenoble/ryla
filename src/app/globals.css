@@ -258,3 +258,42 @@ body {
     opacity: 0.55;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Bordure tracée au survol
+
+   Le trait part du haut et fait le tour. `stroke-dasharray: 1` avec
+   `pathLength="1"` sur le tracé : un seul tiret long comme tout le contour,
+   qu'on décale hors champ au repos et qu'on ramène au survol.
+
+   Le décalage négatif fait démarrer le trait au milieu du bord supérieur
+   plutôt qu'au coin — c'est plus lisible sur une forme en pilule, où le coin
+   n'existe pas.
+   --------------------------------------------------------------------------- */
+.trace-rect {
+  fill: none;
+  stroke: var(--color-brand-600);
+  stroke-width: 1;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 0.5s var(--ease-out-expo);
+}
+
+.group:hover .trace-rect,
+.group:focus-visible .trace-rect {
+  stroke-dashoffset: 0;
+}
+
+/* Le trait apparaît d'un coup au lieu de se dessiner : l'information reste,
+   le mouvement disparaît. */
+@media (prefers-reduced-motion: reduce) {
+  .trace-rect {
+    transition: opacity 0.15s linear;
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+  .group:hover .trace-rect,
+  .group:focus-visible .trace-rect {
+    opacity: 1;
+  }
+}
