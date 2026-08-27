@@ -1,5 +1,20 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
+import { hasCertifiedHealthHost } from "@/lib/legal-entity";
+
+/**
+ * Ces pages-ci sont indexables, contrairement au reste du site.
+ *
+ * La règle globale est `noindex` : les adresses de portail patient sont des
+ * secrets, et l'espace praticien n'a rien à faire dans un moteur de recherche.
+ * Mais une vitrine que personne ne peut trouver ne sert à rien, et des mentions
+ * légales introuvables ne remplissent pas leur office. On lève donc la règle
+ * ici, et seulement ici.
+ */
+export const metadata: Metadata = {
+  robots: { index: true, follow: true },
+};
 
 /**
  * Coque des pages publiques.
@@ -46,8 +61,8 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
             <div className="max-w-xs">
               <Logo size="sm" />
               <p className="mt-3 text-sm leading-relaxed text-muted">
-                Questionnaires médicaux, consentements éclairés et devis conformes,
-                avec le dossier de preuve qui va avec.
+                Vos questionnaires, consentements et devis remplis et signés à
+                distance, prêts à classer dans le dossier du patient.
               </p>
             </div>
 
@@ -76,9 +91,10 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
           </div>
 
           <p className="mt-9 border-t border-line pt-5 text-xs text-faint">
-            © {new Date().getFullYear()} Ryla. Les données de santé sont hébergées
-            chez un prestataire certifié HDS (art. L1111-8 du code de la santé
-            publique).
+            © {new Date().getFullYear()} Ryla
+            {hasCertifiedHealthHost()
+              ? ". Les données de santé sont hébergées chez un prestataire certifié HDS (art. L1111-8 du code de la santé publique)."
+              : "."}
           </p>
         </div>
       </footer>

@@ -68,6 +68,23 @@ export const HOSTS: Host[] = [
   },
 ];
 
+/**
+ * L'hébergeur des données de santé est-il nommé ?
+ *
+ * Sert de verrou aux arguments commerciaux. Tant que cette ligne est vide, la
+ * vitrine ne revendique aucune certification HDS — annoncer un agrément qu'on
+ * n'a pas est une allégation trompeuse au sens de l'article L121-2 du code de
+ * la consommation, et se retourne d'autant plus vite qu'on s'adresse à des
+ * professionnels de santé qui savent ce que le sigle recouvre.
+ *
+ * Le jour où la bascule est faite, on renseigne l'hébergeur ci-dessus et
+ * l'argument réapparaît de lui-même. C'est la même donnée qui sert aux mentions
+ * légales : une seule source, pas deux vérités.
+ */
+export function hasCertifiedHealthHost(): boolean {
+  return (HOSTS[1]?.name ?? "").trim() !== "";
+}
+
 /** Champs obligatoires encore vides. Sert à afficher un avertissement visible. */
 export function missingLegalFields(): string[] {
   const labels: Partial<Record<keyof LegalEntity, string>> = {

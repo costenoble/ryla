@@ -2,15 +2,16 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { signupOpen } from "@/lib/actions/signup";
 import { currentSession } from "@/lib/auth";
+import { hasCertifiedHealthHost } from "@/lib/legal-entity";
 import { HomeView } from "./HomeView";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Ryla — la preuve de l'information délivrée",
+  title: "Ryla — questionnaires, consentements et devis signés à distance",
   description:
-    "Questionnaires médicaux, consentements éclairés et devis conformes, avec le dossier " +
-    "de preuve qui va avec. Pour la chirurgie dentaire et la médecine esthétique.",
+    "Vos patients remplissent et signent depuis leur téléphone avant la consultation. " +
+    "Vous récupérez un PDF à classer dans votre logiciel. Aucune installation.",
 };
 
 export default async function HomePage() {
@@ -18,5 +19,7 @@ export default async function HomePage() {
   // travailler, pas se laisser convaincre.
   if (await currentSession()) redirect("/tableau-de-bord");
 
-  return <HomeView signupOpen={await signupOpen()} />;
+  return (
+    <HomeView signupOpen={await signupOpen()} certifiedHost={hasCertifiedHealthHost()} />
+  );
 }
