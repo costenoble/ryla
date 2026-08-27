@@ -175,8 +175,8 @@ export function HomeView({
                 <Image
                   src="/vitrine/portail-patient.png"
                   alt="Le portail patient sur téléphone : le questionnaire à remplir, section par section."
-                  width={780}
-                  height={1560}
+                  width={1170}
+                  height={2262}
                   sizes="208px"
                   className="w-full"
                 />
