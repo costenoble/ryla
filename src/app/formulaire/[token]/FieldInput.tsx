@@ -46,7 +46,7 @@ export function FieldInput({ field, value, error, onChange }: Props) {
           className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition ${
             checked
               ? "brand-border brand-soft"
-              : "border-line bg-surface hover:border-line-strong"
+              : "border-line-strong bg-canvas hover:border-brand-400 hover:bg-brand-50"
           }`}
         >
           <input
@@ -120,10 +120,14 @@ function renderControl(
               type="button"
               aria-pressed={value === option.answer}
               onClick={() => onChange(option.answer)}
-              className={`flex-1 rounded-xl border px-4 py-2.5 text-sm font-medium transition ${
+              // Fond teinté au repos, et non blanc sur blanc : sans lui, les
+              // deux choix se lisaient comme des zones inertes et le patient ne
+              // voyait pas qu'il fallait cliquer. Le survol ne faisait rien —
+              // il reprenait la classe de bordure déjà appliquée.
+              className={`flex-1 rounded-xl border px-4 py-3 text-sm font-semibold transition ${
                 value === option.answer
                   ? "brand-border brand-bg text-white shadow-tile"
-                  : "border-line-strong bg-surface text-body hover:border-line-strong"
+                  : "border-line-strong bg-canvas text-body hover:border-brand-400 hover:bg-brand-50"
               }`}
             >
               {option.label}
@@ -163,7 +167,7 @@ function renderControl(
                 className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition ${
                   checked
                     ? "brand-border brand-soft"
-                    : "border-line bg-surface hover:border-line-strong"
+                    : "border-line-strong bg-canvas hover:border-brand-400 hover:bg-brand-50"
                 }`}
               >
                 <input
@@ -236,7 +240,7 @@ function renderControl(
                   className={`size-9 rounded-xl border text-sm font-medium transition ${
                     current === step
                       ? "brand-border brand-bg text-white"
-                      : "border-line-strong bg-surface text-body hover:border-line-strong"
+                      : "border-line-strong bg-canvas text-body hover:border-brand-400 hover:bg-brand-50"
                   }`}
                 >
                   {step}

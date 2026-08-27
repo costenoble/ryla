@@ -52,7 +52,10 @@
   --color-canvas: #f6f8fc;
   --color-surface: #ffffff;
   --color-line: #e6ebf3;
-  --color-line-strong: #d3dbe8;
+  /* Bordure des contrôles. #d3dbe8 tenait à peine 1,3:1 sur blanc : les champs
+     et les boutons Oui/Non se lisaient comme des zones inertes. Celle-ci passe
+     le 3:1 exigé pour les limites d'un composant d'interface (WCAG 1.4.11). */
+  --color-line-strong: #8496ad;
   --color-body: #0f172a;
   --color-muted: #64748b;
   --color-faint: #94a3b8;

@@ -225,7 +225,10 @@ export function EmptyState({
 const INPUT_BASE =
   "rounded-md border border-line-strong bg-surface px-3.5 py-2.5 text-[15px] " +
   "text-body shadow-[inset_0_1px_2px_rgb(15_23_42/0.04)] transition " +
-  "placeholder:text-faint focus:border-brand-400 focus:ring-4 focus:ring-brand-100 focus:outline-none";
+  // Au focus la bordure se **renforce** : elle passait de gris clair à un bleu
+  // plus pâle encore, et le champ semblait perdre son cadre au moment précis où
+  // on le remplissait.
+  "placeholder:text-faint focus:border-brand-600 focus:ring-4 focus:ring-brand-100 focus:outline-none";
 
 export const inputClass = `w-full ${INPUT_BASE}`;
 

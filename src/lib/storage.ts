@@ -74,7 +74,12 @@ function postgresStore(tx: Tx, tenantId: string): DocumentStore {
 // ---------------------------------------------------------------------------
 
 function localPath(key: string): string {
-  const root = resolve(process.cwd(), env.storageLocalDir);
+  // `turbopackIgnore` : ce chemin est construit à l'exécution, et l'analyse
+  // statique de Next en conclut qu'il faut embarquer tout le projet — sources
+  // et dossier public compris — dans le paquet serveur. Le pilote local ne sert
+  // qu'en développement : en production `STORAGE_DRIVER` vaut `postgres`, et
+  // demain `s3`. Le signaler évite de déployer des mégaoctets inutiles.
+  const root = resolve(/* turbopackIgnore: true */ process.cwd(), env.storageLocalDir);
   const target = resolve(root, key);
   // Un `..` dans une clé sortirait du répertoire de stockage.
   if (!target.startsWith(root)) throw new Error("Clé de stockage invalide.");

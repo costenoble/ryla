@@ -446,7 +446,7 @@ function SignatureStep({
               className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition ${
                 accepted
                   ? "brand-border brand-soft"
-                  : "border-line bg-surface hover:border-line-strong"
+                  : "border-line-strong bg-canvas hover:border-brand-400 hover:bg-brand-50"
               }`}
             >
               <input

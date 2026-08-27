@@ -195,7 +195,7 @@ export function QuoteEditor({
                   className={`rounded-xl border px-4 py-2 text-sm font-medium transition ${
                     kind === value
                       ? "border-brand-600 bg-brand-50 text-brand-700"
-                      : "border-line text-muted hover:border-line-strong"
+                      : "border-line-strong bg-canvas text-body hover:border-brand-400 hover:bg-brand-50"
                   }`}
                 >
                   {label}

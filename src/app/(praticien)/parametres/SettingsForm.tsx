@@ -454,7 +454,7 @@ function LetterheadCard({
                 className={`cursor-pointer rounded-xl border px-4 py-2 text-sm font-medium transition ${
                   mode === value
                     ? "border-brand-600 bg-brand-50 text-brand-700"
-                    : "border-line text-muted hover:border-line-strong"
+                    : "border-line-strong bg-canvas text-body hover:border-brand-400 hover:bg-brand-50"
                 }`}
               >
                 <input
@@ -687,7 +687,7 @@ function Toggle({
       className={`flex size-8 items-center justify-center rounded-lg border text-sm transition disabled:opacity-30 ${
         active
           ? "border-brand-600 bg-brand-50 text-brand-700"
-          : "border-line text-muted hover:border-line-strong"
+          : "border-line-strong bg-canvas text-body hover:border-brand-400 hover:bg-brand-50"
       }`}
     >
       {children}
