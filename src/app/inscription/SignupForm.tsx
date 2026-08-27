@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 import { IconAlert, IconCheck, IconLock } from "@/components/icons";
+import { PasswordField } from "@/components/PasswordField";
 import { Button, Field, inputClass } from "@/components/ui";
 import { createCabinet, type SignupState } from "@/lib/actions/signup";
 import { DPA_SUMMARY, DPA_VERSION } from "@/lib/dpa";
@@ -130,23 +131,15 @@ export function SignupForm({ requiresCode }: { requiresCode: boolean }) {
         />
       </Field>
 
-      <Field
+      <PasswordField
         label="Mot de passe"
-        htmlFor="password"
+        name="password"
+        autoComplete="new-password"
         required
-        error={fieldError("password")}
+        minLength={10}
         hint="10 caractères minimum. Ce compte ouvre des dossiers médicaux."
-      >
-        <input
-          id="password"
-          name="password"
-          type="password"
-          required
-          minLength={10}
-          autoComplete="new-password"
-          className={inputClass}
-        />
-      </Field>
+        error={fieldError("password")}
+      />
 
       {/* Article 28.3 du RGPD : sans contrat écrit, le cabinet est en infraction
           dès la première donnée saisie. On résume ce qui engage réellement —

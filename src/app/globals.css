@@ -297,3 +297,49 @@ body {
     opacity: 1;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Écran d'ouverture de la vitrine
+
+   Entièrement en CSS, rendu par le serveur : une version pilotée en JavaScript
+   afficherait d'abord la page, puis le voile par-dessus une fois hydratée —
+   soit exactement l'inverse de l'effet recherché. Ici le voile est déjà là au
+   premier pixel peint, et il s'efface tout seul.
+
+   `visibility: hidden` en fin d'animation, et non seulement `opacity: 0` : un
+   élément transparent reste cliquable et intercepterait les clics sur la page.
+   --------------------------------------------------------------------------- */
+@keyframes intro-veil {
+  0%, 40% { opacity: 1; visibility: visible; }
+  100% { opacity: 0; visibility: hidden; }
+}
+
+@keyframes intro-mark {
+  0% { opacity: 0; transform: scale(0.94); }
+  35% { opacity: 1; transform: scale(1); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.intro-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  gap: 1.25rem;
+  align-content: center;
+  background: var(--color-canvas);
+  animation: intro-veil 1.5s var(--ease-out-expo) forwards;
+}
+
+.intro-mark {
+  animation: intro-mark 0.9s var(--ease-out-expo) both;
+}
+
+/* Un voile qui s'efface est une animation ; qui n'a jamais rien vu ne perd
+   rien. On le retire donc entièrement plutôt que de le faire disparaître. */
+@media (prefers-reduced-motion: reduce) {
+  .intro-veil {
+    display: none;
+  }
+}

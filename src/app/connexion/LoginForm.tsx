@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { IconAlert } from "@/components/icons";
+import { PasswordField } from "@/components/PasswordField";
 import { Button, Field, inputClass } from "@/components/ui";
 import { login, type LoginState } from "./actions";
 
@@ -75,16 +76,12 @@ export function LoginForm({
         />
       </Field>
 
-      <Field label="Mot de passe" htmlFor="password" required>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          required
-          autoComplete="current-password"
-          className={inputClass}
-        />
-      </Field>
+      <PasswordField
+        label="Mot de passe"
+        name="password"
+        autoComplete="current-password"
+        required
+      />
 
       {state.error ? (
         // `role="alert"` : sans lui, un lecteur d'écran ne signale pas l'échec,

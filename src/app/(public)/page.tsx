@@ -4,6 +4,7 @@ import { signupOpen } from "@/lib/actions/signup";
 import { currentSession } from "@/lib/auth";
 import { hasCertifiedHealthHost } from "@/lib/legal-entity";
 import { HomeView } from "./HomeView";
+import { IntroVeil } from "./IntroVeil";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,9 @@ export default async function HomePage() {
   if (await currentSession()) redirect("/tableau-de-bord");
 
   return (
-    <HomeView signupOpen={await signupOpen()} certifiedHost={hasCertifiedHealthHost()} />
+    <>
+      <IntroVeil />
+      <HomeView signupOpen={await signupOpen()} certifiedHost={hasCertifiedHealthHost()} />
+    </>
   );
 }
