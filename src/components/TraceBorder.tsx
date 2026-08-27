@@ -11,13 +11,32 @@
  * l'avance — donc figer la largeur, donc casser le bouton dès qu'on change son
  * libellé.
  *
- * Le `rx` volontairement énorme est ramené par le moteur de rendu à la moitié
- * de la hauteur : le tracé épouse donc n'importe quel rayon, de l'angle droit
- * à la pilule, sans qu'on ait à le lui dire.
+ * Le rayon doit correspondre à celui de l'élément habillé, sinon le trait
+ * flotte à côté de la forme au lieu de l'épouser. Les valeurs admises sont
+ * celles de l'échelle de `globals.css` — pas de troisième rayon inventé ici,
+ * c'est exactement ce qui fait « bricolé ».
  *
  * L'élément parent doit porter `group` et `relative`.
  */
-export function TraceBorder({ className }: { className?: string }) {
+const RADII = {
+  /** 12 px — `rounded-md`. */
+  md: 12,
+  /** 16 px — `rounded-lg`. */
+  lg: 16,
+  /** 20 px — `rounded-xl`. */
+  xl: 20,
+  /** Pilule : le moteur de rendu ramène le rayon à la moitié de la hauteur. */
+  full: 9999,
+} as const;
+
+export function TraceBorder({
+  radius = "md",
+  className,
+}: {
+  /** À accorder au `rounded-*` de l'élément habillé. */
+  radius?: keyof typeof RADII;
+  className?: string;
+}) {
   return (
     <svg
       aria-hidden="true"
@@ -28,7 +47,7 @@ export function TraceBorder({ className }: { className?: string }) {
         y="0"
         width="100%"
         height="100%"
-        rx="9999"
+        rx={RADII[radius]}
         pathLength={1}
         className="trace-rect"
       />

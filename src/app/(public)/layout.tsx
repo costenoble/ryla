@@ -49,15 +49,15 @@ export default async function PublicLayout({
           <nav className="flex items-center gap-1.5 sm:gap-3">
             <Link
               href="/connexion"
-              className="group relative rounded-full px-4 py-2 text-sm font-semibold text-muted transition hover:text-brand-700"
+              className="group relative rounded-md px-4 py-2 text-sm font-semibold text-muted transition hover:text-brand-700"
             >
-              <TraceBorder />
+              <TraceBorder radius="md" />
               Se connecter
             </Link>
             {canSignup ? (
               <Link
                 href="/inscription"
-                className="rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-tile transition hover:bg-brand-700 hover:shadow-card"
+                className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-tile transition hover:bg-brand-700 hover:shadow-card"
               >
                 Créer un cabinet
               </Link>
