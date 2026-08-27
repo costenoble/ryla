@@ -5,6 +5,7 @@ import { recordAudit } from "@/lib/audit";
 import { requestContext } from "@/lib/auth";
 import { generateDek, hashPassword, wrapDek } from "@/lib/crypto";
 import { withPrivileged, withTenant } from "@/lib/db";
+import { DPA_VERSION } from "@/lib/dpa";
 import { env } from "@/lib/env";
 import { parseFormDefinition } from "@/lib/form-schema";
 import { librarySelection } from "@/lib/library";
@@ -119,6 +120,19 @@ export async function createCabinet(
       message: "L'identifiant doit comporter 11 chiffres (RPPS) ou 9 (ADELI).",
     };
   }
+  // Article 28.3 du RGPD : la relation responsable de traitement / sous-traitant
+  // doit être régie par un contrat écrit. Sans lui, le cabinet est en
+  // infraction dès la première donnée saisie — et Ryla avec lui. On refuse donc
+  // de créer l'espace, plutôt que de le créer non conforme.
+  if (formData.get("dpa") !== "on") {
+    return {
+      status: "error",
+      field: "dpa",
+      message:
+        "L'acceptation du contrat de sous-traitance est obligatoire : c'est lui qui " +
+        "rend le traitement de données de santé licite.",
+    };
+  }
 
   if (await resolveTenantBySlug(slug)) {
     return {
@@ -138,6 +152,18 @@ export async function createCabinet(
     if (!tenantId) throw new Error("Création du cabinet impossible.");
 
     const cookieValue = await withTenant({ tenantId }, async (tx) => {
+      // Horodatage serveur, jamais une date fournie par le client — c'est la
+      // règle qu'on applique aux signatures des patients, il n'y avait aucune
+      // raison d'être moins exigeant avec la nôtre.
+      await tx`
+        update tenants set
+          dpa_version = ${DPA_VERSION},
+          dpa_accepted_at = now(),
+          dpa_accepted_by = ${`${fullName} <${email}>`},
+          dpa_accepted_ip = ${client.ip}::inet
+        where id = ${tenantId}
+      `;
+
       const [user] = await tx<{ id: string }[]>`
         insert into users (tenant_id, email, password_hash, full_name, role, rpps)
         values (${tenantId}, ${email}, ${hashPassword(password)}, ${fullName}, 'owner',
@@ -172,7 +198,7 @@ export async function createCabinet(
         objectId: user.id,
         ip: client.ip,
         userAgent: client.userAgent,
-        metadata: { slug, email, specialty },
+        metadata: { slug, email, specialty, dpaVersion: DPA_VERSION },
       });
 
       const session = await createSession(tx, {

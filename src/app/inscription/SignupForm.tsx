@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
-import { IconAlert, IconLock } from "@/components/icons";
+import { IconAlert, IconCheck, IconLock } from "@/components/icons";
 import { Button, Field, inputClass } from "@/components/ui";
 import { createCabinet, type SignupState } from "@/lib/actions/signup";
+import { DPA_SUMMARY, DPA_VERSION } from "@/lib/dpa";
 
 const initial: SignupState = { status: "idle" };
 
@@ -146,6 +147,62 @@ export function SignupForm({ requiresCode }: { requiresCode: boolean }) {
           className={inputClass}
         />
       </Field>
+
+      {/* Article 28.3 du RGPD : sans contrat écrit, le cabinet est en infraction
+          dès la première donnée saisie. On résume ce qui engage réellement —
+          personne ne lit onze clauses dans un formulaire, et prétendre le
+          contraire produit un consentement de façade. Le texte intégral reste à
+          un clic, et c'est sa version qui est enregistrée. */}
+      <div className="rounded-2xl border border-line bg-canvas p-4">
+        <ul className="mb-3.5 space-y-1.5">
+          {DPA_SUMMARY.map((line) => (
+            <li key={line} className="flex items-start gap-2 text-xs leading-relaxed text-muted">
+              <IconCheck className="mt-0.5 size-3.5 shrink-0 text-positive" />
+              {line}
+            </li>
+          ))}
+        </ul>
+
+        <label className="flex cursor-pointer items-start gap-2.5">
+          <input
+            type="checkbox"
+            name="dpa"
+            required
+            className="mt-0.5 size-4 shrink-0"
+            aria-describedby="dpa-hint"
+          />
+          <span className="text-sm leading-relaxed text-body">
+            J'accepte le{" "}
+            <Link
+              href="/sous-traitance"
+              target="_blank"
+              className="font-semibold text-brand-600 underline underline-offset-2 hover:text-brand-700"
+            >
+              contrat de sous-traitance
+            </Link>{" "}
+            et la{" "}
+            <Link
+              href="/confidentialite"
+              target="_blank"
+              className="font-semibold text-brand-600 underline underline-offset-2 hover:text-brand-700"
+            >
+              politique de confidentialité
+            </Link>
+            .
+          </span>
+        </label>
+
+        <p id="dpa-hint" className="mt-2 text-xs leading-relaxed text-faint">
+          Version {DPA_VERSION}. Votre acceptation est horodatée et conservée avec
+          cette version — une évolution du texte ne la modifiera pas.
+        </p>
+
+        {fieldError("dpa") ? (
+          <p role="alert" className="mt-2 text-xs font-semibold text-danger">
+            {fieldError("dpa")}
+          </p>
+        ) : null}
+      </div>
 
       {error && !error.field ? (
         <p
